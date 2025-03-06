@@ -18,7 +18,7 @@ def busca_cep():
             return jsonify({'error': 'CEP não encontrado'}), 404
         
         return jsonify({
-            'RUA': dados.get('logradouro', ''),
+            'LOGRADOURO': dados.get('logradouro', ''),
             'COMPLEMENTO': dados.get('complemento', ''),
             'BAIRRO': dados.get('bairro', ''),
             'CIDADE': dados.get('localidade', ''),
