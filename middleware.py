@@ -2,6 +2,7 @@ from flask import Flask, request, Response
 import requests
 from lxml import etree
 import logging
+from zeep import Client
 
 app = Flask(__name__)
 
@@ -37,25 +38,20 @@ def consulta_cep():
         if not cep:
             return gerar_erro_xml("CEP não informado.", guid)
 
-        # Fazendo requisição à API do ViaCEP para obter os dados
-        response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
-        if response.status_code != 200:
-            return gerar_erro_xml("Erro ao consultar o CEP.", guid)
+        # Usando Zeep para consumir o serviço ViaCEP
+        client = Client("https://viacep.com.br/ws/{{CEP}}/xml/")  # Substitua {{CEP}} por uma string vazia inicialmente
+        response = client.service.consultaCEP(cep)
 
-        data = response.json()
-        if "erro" in data:
-            return gerar_erro_xml("CEP inválido ou não encontrado.", guid)
-
-        # Construindo XML de resposta
-        xml_response = gerar_resposta_xml(guid, data)
+        # Construindo XML de resposta com os dados do Zeep
+        xml_response = gerar_resposta_xml_zeep(guid, response)
         return Response(xml_response, content_type="application/xml")
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno: {str(e)}", GUID_FIXO)
 
-def gerar_resposta_xml(guid, data):
-    """Gera a resposta XML com os dados do endereço."""
+def gerar_resposta_xml_zeep(guid, data):
+    """Gera a resposta XML com os dados do Zeep."""
     response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
 
     # Mensagem de sucesso
@@ -66,12 +62,12 @@ def gerar_resposta_xml(guid, data):
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
 
-    # Adicionando os campos do endereço
-    adicionar_campo(fields, "LOGRADOURO", data.get("logradouro", ""))
-    adicionar_campo(fields, "COMPLEMENTO", data.get("complemento", ""))
-    adicionar_campo(fields, "BAIRRO", data.get("bairro", ""))
-    adicionar_campo(fields, "CIDADE", data.get("localidade", ""))
-    adicionar_campo(fields, "ESTADO", data.get("uf", ""))
+    # Adicionando os campos do endereço do Zeep
+    adicionar_campo(fields, "LOGRADOURO", data.logradouro)
+    adicionar_campo(fields, "COMPLEMENTO", data.complemento)
+    adicionar_campo(fields, "BAIRRO", data.bairro)
+    adicionar_campo(fields, "CIDADE", data.cidade)
+    adicionar_campo(fields, "ESTADO", data.uf)
 
     # Texto curto
     etree.SubElement(return_value, "ShortText").text = "Endereço retornado com sucesso"
@@ -100,6 +96,9 @@ def adicionar_campo(parent, field_id, value):
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
+
+
+# ... (restante do código: gerar_erro_xml, adicionar_campo)
 
 if __name__ == "__main__":
     app.run(debug=True)
