@@ -1,16 +1,22 @@
 from flask import Flask, request, Response
 import requests
 from lxml import etree
+import logging
 
 app = Flask(__name__)
 
 GUID_FIXO = "7a2fb530-87b2-4f66-963a-bc231f624ac7"
+
+# Configuração do logger
+logging.basicConfig(level=logging.DEBUG)
 
 @app.route("/consulta_cep", methods=["POST"])
 def consulta_cep():
     try:
         # Lendo o XML recebido
         xml_data = request.data.decode("utf-8")
+        logging.debug(f"XML recebido: {xml_data}")
+
         if not xml_data.strip():
             return gerar_erro_xml("XML recebido está vazio.", GUID_FIXO)
 
@@ -18,12 +24,14 @@ def consulta_cep():
 
         # Pegando o GUID do formulário
         guid = root.findtext("Guid")
+        logging.debug(f"GUID: {guid}")
 
         # Pegando o CEP enviado
         cep = None
         for field in root.findall(".//Field"):
             if field.findtext("Id") == "CEP":
                 cep = field.findtext("Value")
+                logging.debug(f"CEP encontrado: {cep}")
                 break
 
         if not cep:
@@ -43,6 +51,7 @@ def consulta_cep():
         return Response(xml_response, content_type="application/xml")
 
     except Exception as e:
+        logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno: {str(e)}", GUID_FIXO)
 
 def gerar_resposta_xml(guid, data):
