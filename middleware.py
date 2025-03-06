@@ -1,83 +1,85 @@
 from flask import Flask, request, Response
 import requests
-import xmltodict
+from lxml import etree
 
 app = Flask(__name__)
 
-@app.route('/busca-cep', methods=['POST'])
-def busca_cep():
-    # Recebe a requisição SOAP em XML
-    soap_request = request.data
-    print("Recebendo SOAP Request:")
-    print(soap_request)  # Exibe o XML recebido
-
+@app.route("/consulta_cep", methods=["POST"])
+def consulta_cep():
     try:
-        # Faz o parsing do XML recebido
-        data = xmltodict.parse(soap_request)
-        print("XML Parsed:", data)
+        # Lendo o XML recebido
+        xml_data = request.data.decode("utf-8")
+        root = etree.fromstring(xml_data.encode("utf-8"))
 
-        # Extraindo o CEP do XML
+        # Pegando o GUID do formulário
+        guid = root.findtext("Guid")
+
+        # Pegando o CEP enviado
         cep = None
-        for field in data['soapenv:Envelope']['soapenv:Body']['web:consultaCep']['Field']:
-            if field['Id'] == 'CEP':
-                cep = field['Value']
+        for field in root.findall(".//Field"):
+            if field.findtext("Id") == "CEP":
+                cep = field.findtext("Value")
                 break
-        print("CEP Extraído:", cep)
 
-    except (KeyError, xmltodict.expat.ExpatError) as e:
-        print(f"Erro ao processar o XML: {e}")
-        return Response("<error>Formato SOAP inválido</error>", status=400, content_type='text/xml')
+        if not cep:
+            return gerar_erro_xml("CEP não informado.", guid)
 
-    if not cep:
-        return Response("<error>CEP não informado</error>", status=400, content_type='text/xml')
+        # Fazendo requisição à API do ViaCEP para obter os dados
+        response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
+        if response.status_code != 200:
+            return gerar_erro_xml("Erro ao consultar o CEP.", guid)
 
-    try:
-        # Fazendo a requisição ao ViaCEP no formato XML
-        response = requests.get(f'https://viacep.com.br/ws/{cep}/xml/')
-        dados = xmltodict.parse(response.text)
-        print("Dados do ViaCEP:", dados)
+        data = response.json()
+        if "erro" in data:
+            return gerar_erro_xml("CEP inválido ou não encontrado.", guid)
 
-        # Se o CEP não for encontrado, retornamos erro
-        if 'erro' in dados['xmlcep']:
-            return Response("<error>CEP não encontrado</error>", status=404, content_type='text/xml')
+        # Construindo XML de resposta
+        xml_response = gerar_resposta_xml(guid, data)
+        return Response(xml_response, content_type="application/xml")
 
-        # Montando a resposta XML em formato esperado pela documentação
-        resposta_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-        <Response>
-            <ReturnValue>
-                <Items>
-                    <Item>
-                        <Text>LOGRADOURO</Text>
-                        <Value>{dados['xmlcep']['logradouro']}</Value>
-                    </Item>
-                    <Item>
-                        <Text>COMPLEMENTO</Text>
-                        <Value>{dados['xmlcep']['complemento']}</Value>
-                    </Item>
-                    <Item>
-                        <Text>BAIRRO</Text>
-                        <Value>{dados['xmlcep']['bairro']}</Value>
-                    </Item>
-                    <Item>
-                        <Text>CIDADE</Text>
-                        <Value>{dados['xmlcep']['localidade']}</Value>
-                    </Item>
-                    <Item>
-                        <Text>ESTADO</Text>
-                        <Value>{dados['xmlcep']['uf']}</Value>
-                    </Item>
-                </Items>
-            </ReturnValue>
-        </Response>
-        """
+    except Exception as e:
+        return gerar_erro_xml(f"Erro interno: {str(e)}", "0000")
 
-        print("Resposta XML:", resposta_xml)  # Exibe a resposta XML
+def gerar_resposta_xml(guid, data):
+    """Gera a resposta XML com os dados do endereço."""
+    response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
 
-        return Response(resposta_xml, content_type='text/xml')
+    # Mensagem de sucesso
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = "CEP encontrado com sucesso"
 
-    except requests.exceptions.RequestException as e:
-        print(f"Erro ao buscar CEP: {e}")
-        return Response("<error>Erro ao buscar CEP</error>", status=500, content_type='text/xml')
+    # Retorno dos valores
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    fields = etree.SubElement(return_value, "Fields")
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Adicionando os campos do endereço
+    adicionar_campo(fields, "LOGRADOURO", data.get("logradouro", ""))
+    adicionar_campo(fields, "COMPLEMENTO", data.get("complemento", ""))
+    adicionar_campo(fields, "BAIRRO", data.get("bairro", ""))
+    adicionar_campo(fields, "CIDADE", data.get("localidade", ""))
+    adicionar_campo(fields, "ESTADO", data.get("uf", ""))
+
+    # Texto curto
+    etree.SubElement(return_value, "ShortText").text = "Endereço retornado com sucesso"
+    etree.SubElement(return_value, "LongText").text = ""
+    etree.SubElement(return_value, "Value").text = "1"
+
+    return etree.tostring(response, encoding="utf-16", xml_declaration=True)
+
+def gerar_erro_xml(mensagem, guid):
+    """Gera um XML de erro com mensagem personalizada."""
+    response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
+
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = mensagem
+
+    return Response(etree.tostring(response, encoding="utf-16", xml_declaration=True), content_type="application/xml")
+
+def adicionar_campo(parent, field_id, value):
+    """Adiciona um campo ao XML."""
+    field = etree.SubElement(parent, "Field")
+    etree.SubElement(field, "ID").text = field_id
+    etree.SubElement(field, "Value").text = value
+
+if __name__ == "__main__":
+    app.run(debug=True)
