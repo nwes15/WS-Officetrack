@@ -1,44 +1,48 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, Response
 import requests
-import xml.etree.ElementTree as ET
+import xmltodict
 
 app = Flask(__name__)
 
-@app.route('/busca-cep', methods=['GET'])
+@app.route('/busca-cep', methods=['POST'])
 def busca_cep():
-    cep = request.args.get('CEP')
+    # Recebe a requisição SOAP e faz o parsing
+    soap_request = request.data
+    
+    # Converte o XML de entrada para dicionário
+    try:
+        data = xmltodict.parse(soap_request)
+        cep = data['soapenv:Envelope']['soapenv:Body']['web:consultaCep']['cep']
+    except KeyError:
+        return Response("<error>Formato SOAP inválido</error>", status=400, content_type='text/xml')
 
     if not cep:
-        return jsonify({'error': 'CEP não informado'}), 400
-    
+        return Response("<error>CEP não informado</error>", status=400, content_type='text/xml')
+
     try:
-        # Alterar para URL XML
+        # Acessa o ViaCEP para buscar as informações do CEP
         response = requests.get(f'https://viacep.com.br/ws/{cep}/xml/')
+        dados = response.text
 
-        # Verifica se a resposta foi bem-sucedida
-        if response.status_code != 200:
-            return jsonify({'error': 'Erro ao buscar CEP'}), 500
-        
-        # Parsea o XML
-        root = ET.fromstring(response.content)
+        # Se o CEP não for encontrado, retornamos erro
+        if "<erro>" in dados:
+            return Response("<error>CEP não encontrado</error>", status=404, content_type='text/xml')
 
-        # Extrai os dados do XML
-        logradouro = root.find('logradouro').text if root.find('logradouro') is not None else ''
-        complemento = root.find('complemento').text if root.find('complemento') is not None else ''
-        bairro = root.find('bairro').text if root.find('bairro') is not None else ''
-        cidade = root.find('localidade').text if root.find('localidade') is not None else ''
-        estado = root.find('uf').text if root.find('uf') is not None else ''
+        # Formata a resposta com as informações desejadas no formato XML
+        return Response(f"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <response>
+            <LOGRADOURO>{dados['logradouro']}</LOGRADOURO>
+            <COMPLEMENTO>{dados['complemento']}</COMPLEMENTO>
+            <BAIRRO>{dados['bairro']}</BAIRRO>
+            <CIDADE>{dados['localidade']}</CIDADE>
+            <ESTADO>{dados['uf']}</ESTADO>
+        </response>
+        """, content_type='text/xml')
 
-        return jsonify({
-            'LOGRADOURO': logradouro,
-            'COMPLEMENTO': complemento,
-            'BAIRRO': bairro,
-            'CIDADE': cidade,
-            'ESTADO': estado,
-        })
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': 'Erro ao buscar CEP'}), 500
+        return Response("<error>Erro ao buscar CEP</error>", status=500, content_type='text/xml')
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
+    app.run(debug=True, host='0.0.0.0', port=5000)
     app.run(debug=True, host='0.0.0.0', port=port)
