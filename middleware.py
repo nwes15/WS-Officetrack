@@ -37,19 +37,16 @@ def consulta_cep():
         if not cep:
             return gerar_erro_xml("CEP não informado.", guid)
 
-        # Fazendo a requisição à API ViaCEP para obter os dados
-        url = f"https://viacep.com.br/ws/{cep}/json/"
-        response = requests.get(url)
-
+        # Fazendo requisição à API do ViaCEP para obter os dados
+        response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
             return gerar_erro_xml("Erro ao consultar o CEP.", guid)
 
         data = response.json()
-
         if "erro" in data:
             return gerar_erro_xml("CEP inválido ou não encontrado.", guid)
 
-        # Construindo XML de resposta com os dados do ViaCEP
+        # Construindo XML de resposta
         xml_response = gerar_resposta_xml(guid, data)
         return Response(xml_response, content_type="application/xml")
 
@@ -58,7 +55,7 @@ def consulta_cep():
         return gerar_erro_xml(f"Erro interno: {str(e)}", GUID_FIXO)
 
 def gerar_resposta_xml(guid, data):
-    """Gera a resposta XML com os dados do ViaCEP."""
+    """Gera a resposta XML com os dados do endereço."""
     response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
 
     # Mensagem de sucesso
@@ -103,9 +100,6 @@ def adicionar_campo(parent, field_id, value):
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
-
-
-# ... (restante do código: gerar_erro_xml, adicionar_campo)
 
 if __name__ == "__main__":
     app.run(debug=True)
