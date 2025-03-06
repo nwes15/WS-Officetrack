@@ -16,6 +16,9 @@ def consulta_cep():
 
         root = etree.fromstring(xml_data.encode("utf-8"))
 
+        # Pegando o GUID do formulário
+        guid = root.findtext("Guid")
+
         # Pegando o CEP enviado
         cep = None
         for field in root.findall(".//Field"):
@@ -24,25 +27,25 @@ def consulta_cep():
                 break
 
         if not cep:
-            return gerar_erro_xml("CEP não informado.", GUID_FIXO)
+            return gerar_erro_xml("CEP não informado.", guid)
 
         # Fazendo requisição à API do ViaCEP para obter os dados
         response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
-            return gerar_erro_xml("Erro ao consultar o CEP.", GUID_FIXO)
+            return gerar_erro_xml("Erro ao consultar o CEP.", guid)
 
         data = response.json()
         if "erro" in data:
-            return gerar_erro_xml("CEP inválido ou não encontrado.", GUID_FIXO)
+            return gerar_erro_xml("CEP inválido ou não encontrado.", guid)
 
         # Construindo XML de resposta
-        xml_response = gerar_resposta_xml(data)
+        xml_response = gerar_resposta_xml(guid, data)
         return Response(xml_response, content_type="application/xml")
 
     except Exception as e:
         return gerar_erro_xml(f"Erro interno: {str(e)}", GUID_FIXO)
 
-def gerar_resposta_xml(data):
+def gerar_resposta_xml(guid, data):
     """Gera a resposta XML com os dados do endereço."""
     response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
 
@@ -67,7 +70,7 @@ def gerar_resposta_xml(data):
     etree.SubElement(return_value, "Value").text = "1"
 
     # Incluindo o GUID fixo na resposta
-    etree.SubElement(return_value, "Guid").text = GUID_FIXO
+    etree.SubElement(return_value, "Guid").text = guid
 
     return etree.tostring(response, encoding="utf-16", xml_declaration=True)
 
