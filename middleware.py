@@ -78,12 +78,13 @@ def gerar_resposta_xml(guid, data):
     adicionar_campo(fields, "CIDADE", data.get("localidade", ""))
     adicionar_campo(fields, "ESTADO", data.get("uf", ""))
 
-    # Inclui o GUID na resposta
-    etree.SubElement(return_value, "f113c885-2d76-4f08-acda-40138b028050").text = guid
+    # ** Correção: O GUID agora está formatado corretamente**
+    adicionar_campo(fields, "GUID", guid)
 
-    # Depuração: Imprimir XML antes de retornar
     xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=True).decode()
-    print("XML de Resposta:", xml_str)
+    print("XML de Resposta:", xml_str)  #Depuração no console
+
+    return Response(xml_str, content_type="application/xml")
 
 def gerar_erro_xml(mensagem):
     """Gera um XML de erro com mensagem personalizada."""
