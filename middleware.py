@@ -19,8 +19,7 @@ def consulta_cep():
 
         # Se os dados vierem como "application/x-www-form-urlencoded"
         if "application/x-www-form-urlencoded" in content_type:
-            xml_data = request.form.to_dict(flat=False)  # Captura os dados corretamente
-            xml_data = list(xml_data.keys())[0]  # Pega o XML enviado
+            xml_data = request.form.get("TextXML", "")  # Captura o valor do campo "TextXML"
             logging.debug(f"XML extraído do formulário: {xml_data}")
 
         # Se os dados vierem como "application/xml" ou "text/xml"
