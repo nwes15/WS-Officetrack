@@ -1,108 +1,97 @@
 from flask import Flask, request, Response
 import requests
-import xml.etree.ElementTree as ET
+from lxml import etree
+import logging
 
 app = Flask(__name__)
 
-# Guid fixo
-GUID_FIXO = "f113c885-2d76-4f08-acda-40138b028050"
+# Configuração do logger
+logging.basicConfig(level=logging.DEBUG)
 
-@app.route('/consultar-cep', methods=['POST'])
-def consultar_cep():
+@app.route("/consulta_cep", methods=["POST"])
+def consulta_cep():
     try:
-        # Recebe o XML do corpo da requisição
-        xml_recebido = request.data
+        # Lê o corpo da requisição como XML
+        xml_data = request.data.decode("utf-8")
+        logging.debug(f"XML recebido: {xml_data}")
 
-        # Log para depuração (opcional)
-        print("XML Recebido:", xml_recebido.decode('utf-8'))
+        if not xml_data.strip():
+            return gerar_erro_xml("XML recebido está vazio.")
 
-        # Parseia o XML recebido
-        root = ET.fromstring(xml_recebido)
+        # Parse do XML
+        root = etree.fromstring(xml_data.encode("utf-8"))
 
-        # Extrai o valor do campo CEP
+        # Extrai o GUID do formulário
+        guid = root.findtext("Guid")
+        if not guid:
+            return gerar_erro_xml("GUID não encontrado no XML.")
+
+        # Procura o campo CEP no XML
         cep = None
-        for field in root.findall('.//Field'):
-            if field.find('Id').text == 'CEP':
-                cep = field.find('Value').text
+        for field in root.findall(".//Field"):
+            if field.findtext("Id") == "CEP":
+                cep = field.findtext("Value")
                 break
 
         if not cep:
-            # Se o CEP não for encontrado, retorna uma mensagem de erro
-            resposta_erro = '''
-            <Response>
-                <Message>
-                    <Text>CEP não encontrado no XML recebido</Text>
-                </Message>
-            </Response>
-            '''
-            return Response(resposta_erro, content_type='application/xml'), 400
+            return gerar_erro_xml("CEP não informado no XML.")
 
-        # Faz a requisição à API do ViaCEP
-        url = f'https://viacep.com.br/ws/{cep}/json/'
-        response = requests.get(url)
+        # Faz a requisição à API ViaCEP
+        response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
-            # Se a API do ViaCEP retornar um erro, retorna uma mensagem de erro
-            resposta_erro = '''
-            <Response>
-                <Message>
-                    <Text>Erro ao consultar o CEP na API do ViaCEP</Text>
-                </Message>
-            </Response>
-            '''
-            return Response(resposta_erro, content_type='application/xml'), 500
+            return gerar_erro_xml("Erro ao consultar o CEP na API ViaCEP.")
 
-        dados_cep = response.json()
+        data = response.json()
+        if "erro" in data:
+            return gerar_erro_xml("CEP inválido ou não encontrado.")
 
-        # Cria o XML de resposta
-        root_resposta = ET.Element('Response')
+        # Retorna os dados do endereço em maiúsculo
+        return gerar_resposta_xml(guid, data)
 
-        # Mensagem de sucesso
-        mensagem = ET.SubElement(root_resposta, 'Message')
-        texto_mensagem = ET.SubElement(mensagem, 'Text')
-        texto_mensagem.text = 'CEP encontrado com sucesso'
+    except Exception as e:
+        logging.error(f"Erro interno: {str(e)}")
+        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
-        # Valor de retorno
-        return_value = ET.SubElement(root_resposta, 'ReturnValue')
+def gerar_resposta_xml(guid, data):
+    """Gera a resposta XML com os dados do endereço."""
+    response = etree.Element("Response")
 
-        # Campos de retorno
-        fields = ET.SubElement(return_value, 'Fields')
+    # Mensagem de sucesso
+    message = etree.SubElement(response, "Message")
+    etree.SubElement(message, "Text").text = "CEP encontrado com sucesso"
 
-        # Adiciona os campos do endereço
-        campos_endereco = {
-            'LOGRADOURO': dados_cep.get('logradouro', ''),
-            'COMPLEMENTO': dados_cep.get('complemento', ''),
-            'BAIRRO': dados_cep.get('bairro', ''),
-            'CIDADE': dados_cep.get('localidade', ''),
-            'ESTADO': dados_cep.get('uf', '')
-        }
+    # Retorno dos valores
+    return_value = etree.SubElement(response, "ReturnValue")
+    fields = etree.SubElement(return_value, "Fields")
 
-        for id_campo, valor_campo in campos_endereco.items():
-            field = ET.SubElement(fields, 'Field')
-            field_id = ET.SubElement(field, 'Id')
-            field_id.text = id_campo
-            field_value = ET.SubElement(field, 'Value')
-            field_value.text = valor_campo
+    # Adiciona os campos do endereço em maiúsculo
+    adicionar_campo(fields, "LOGRADOURO", data.get("logradouro", ""))
+    adicionar_campo(fields, "COMPLEMENTO", data.get("complemento", ""))
+    adicionar_campo(fields, "BAIRRO", data.get("bairro", ""))
+    adicionar_campo(fields, "CIDADE", data.get("localidade", ""))
+    adicionar_campo(fields, "ESTADO", data.get("uf", ""))
 
-        # Usa o Guid fixo no XML de resposta
-        guid_element = ET.SubElement(return_value, 'Guid')
-        guid_element.text = GUID_FIXO
+    # Inclui o GUID na resposta
+    etree.SubElement(return_value, "Guid").text = guid
 
-        # Converte o XML para string
-        xml_resposta = ET.tostring(root_resposta, encoding='utf-8', method='xml')
+    # Depuração: Imprimir XML antes de retornar
+    xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=True).decode()
+    print("XML de Resposta:", xml_str)
 
-        # Retorna o XML como resposta
-        return Response(xml_resposta, content_type='application/xml')
+def gerar_erro_xml(mensagem):
+    """Gera um XML de erro com mensagem personalizada."""
+    response = etree.Element("Response")
 
-    except ET.ParseError as e:
-        # Se o XML estiver malformado, retorna uma mensagem de erro
-        resposta_erro = f'''
-        <Response>
-            <Message>
-                <Text>Erro ao processar o XML recebido: {str(e)}</Text>
-            </Message>
-        </Response>
-        '''
-        return Response(resposta_erro, content_type='application/xml'), 400
+    message = etree.SubElement(response, "Message")
+    etree.SubElement(message, "Text").text = mensagem
 
-if __name__ == '__main__':
+    return Response(etree.tostring(response, encoding="utf-8", xml_declaration=True), content_type="application/xml")
+
+def adicionar_campo(parent, field_id, value):
+    """Adiciona um campo ao XML."""
+    field = etree.SubElement(parent, "Field")
+    etree.SubElement(field, "Id").text = field_id
+    etree.SubElement(field, "Value").text = value
+
+if __name__ == "__main__":
     app.run(debug=True)
