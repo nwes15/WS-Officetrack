@@ -9,7 +9,7 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # GUID fixo
-GUID_FIXO = "96d3454f-5c5f-41fd-b0ad-616753b22d8b"
+GUID_FIXO = "f113c885-2d76-4f08-acda-40138b028050"
 
 @app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
@@ -19,7 +19,8 @@ def consulta_cep():
 
         # Se os dados vierem como "application/x-www-form-urlencoded"
         if "application/x-www-form-urlencoded" in content_type:
-            xml_data = request.form.get("TextXML", "")  # Captura o valor do campo "TextXML"
+            xml_data = request.form.to_dict(flat=False)  # Captura os dados corretamente
+            xml_data = list(xml_data.keys())[0]  # Pega o XML enviado
             logging.debug(f"XML extraído do formulário: {xml_data}")
 
         # Se os dados vierem como "application/xml" ou "text/xml"
@@ -58,7 +59,7 @@ def consulta_cep():
         if "erro" in data:
             return gerar_erro_xml("Erro: CEP inválido ou não encontrado.")
 
-        # Retorna os dados do endereço
+        # Retorna os dados do endereço no formato esperado pelo OfficeTrak
         return gerar_resposta_xml(data)
 
     except Exception as e:
@@ -66,18 +67,18 @@ def consulta_cep():
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
 def gerar_resposta_xml(data):
-    """Gera a resposta XML com os dados do endereço."""
-    response = etree.Element("Response")
+    """Gera a resposta XML no formato esperado pelo OfficeTrak."""
+    response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
 
     # Mensagem de sucesso
-    message = etree.SubElement(response, "Message")
+    message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = "CEP encontrado com sucesso"
 
     # Retorno dos valores
-    return_value = etree.SubElement(response, "ReturnValue")
+    return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
 
-    # Adiciona os campos do endereço em maiúsculo
+    # Adiciona os campos do endereço
     adicionar_campo(fields, "LOGRADOURO", data.get("logradouro", ""))
     adicionar_campo(fields, "COMPLEMENTO", data.get("complemento", ""))
     adicionar_campo(fields, "BAIRRO", data.get("bairro", ""))
@@ -87,24 +88,29 @@ def gerar_resposta_xml(data):
     # Inclui o GUID fixo na resposta
     etree.SubElement(return_value, "Guid").text = GUID_FIXO
 
-    xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=True).decode()
+    # Adiciona ShortText, LongText e Value
+    etree.SubElement(return_value, "ShortText").text = "Endereço retornado com sucesso"
+    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "Value").text = "1"
+
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=True).decode("utf-16")
     logging.debug(f"XML de Resposta: {xml_str}")  # Depuração no console
 
-    return Response(xml_str, content_type="application/xml")
+    return Response(xml_str, content_type="application/xml; charset=utf-16")
 
 def gerar_erro_xml(mensagem):
     """Gera um XML de erro com mensagem personalizada."""
-    response = etree.Element("Response")
+    response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
 
-    message = etree.SubElement(response, "Message")
+    message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = mensagem
 
-    return Response(etree.tostring(response, encoding="utf-8", xml_declaration=True), content_type="application/xml")
+    return Response(etree.tostring(response, encoding="utf-16", xml_declaration=True), content_type="application/xml; charset=utf-16")
 
 def adicionar_campo(parent, field_id, value):
     """Adiciona um campo ao XML."""
     field = etree.SubElement(parent, "Field")
-    etree.SubElement(field, "Id").text = field_id
+    etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
 
 if __name__ == "__main__":
