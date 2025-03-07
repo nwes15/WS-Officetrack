@@ -16,22 +16,36 @@ def consulta_cep():
     try:
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
-
-        # Se os dados vierem como "application/x-www-form-urlencoded"
-        if "application/x-www-form-urlencoded" in content_type:
-            xml_data = request.form.get("TextXML", "")  # Captura o valor do campo "TextXML"
-            logging.debug(f"XML extraído do formulário: {xml_data}")
-
-        # Se os dados vierem como "application/xml" ou "text/xml"
-        elif "application/xml" in content_type or "text/xml" in content_type:
-            if not request.data or request.data.strip() == b'':
-                return gerar_erro_xml("Erro: Requisição XML sem corpo.")
-
-            xml_data = request.data.decode("utf-8").strip()
-            logging.debug(f"XML recebido: {xml_data}")
-
-        else:
-            return gerar_erro_xml("Erro: Formato não suportado. Use XML ou Form-urlencoded.")
+        
+        # Tenta extrair o XML de várias fontes possíveis
+        xml_data = None
+        
+        # Tenta do form primeiro (com vários nomes possíveis)
+        if request.form:
+            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+                if possible_name in request.form:
+                    xml_data = request.form.get(possible_name)
+                    logging.debug(f"XML encontrado no campo {possible_name}")
+                    break
+            
+            # Se não encontrou por nome específico, tenta o primeiro campo do form
+            if not xml_data and len(request.form) > 0:
+                first_key = next(iter(request.form))
+                xml_data = request.form.get(first_key)
+                logging.debug(f"Usando primeiro campo do form: {first_key}")
+        
+        # Se não encontrou no form, tenta do corpo da requisição
+        if not xml_data and request.data:
+            try:
+                xml_data = request.data.decode('utf-8')
+                logging.debug("Usando dados brutos do corpo da requisição")
+            except:
+                pass
+        
+        if not xml_data:
+            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+        
+        logging.debug(f"XML para processar: {xml_data}")
 
         # Tenta fazer o parse do XML
         try:
