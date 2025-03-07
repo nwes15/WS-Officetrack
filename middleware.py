@@ -8,7 +8,7 @@ app = Flask(__name__)
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/consulta_cep", methods=["POST"])
+@app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
     try:
         # Verifica se o corpo da requisição está vazio
