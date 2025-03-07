@@ -8,6 +8,8 @@ app = Flask(__name__)
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
 
+GUID = "f113c885-2d76-4f08-acda-40138b028050"
+
 @app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
     try:
