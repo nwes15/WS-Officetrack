@@ -11,15 +11,22 @@ logging.basicConfig(level=logging.DEBUG)
 @app.route("/consulta_cep", methods=["POST"])
 def consulta_cep():
     try:
+        # Verifica se o corpo da requisição está vazio
+        if not request.data:
+            return gerar_erro_xml("Requisição sem corpo.")
+
         # Lê o corpo da requisição como XML
-        xml_data = request.data.decode("utf-8")
+        xml_data = request.data.decode("utf-8").strip()
         logging.debug(f"XML recebido: {xml_data}")
 
-        if not xml_data.strip():
+        if not xml_data:
             return gerar_erro_xml("XML recebido está vazio.")
 
-        # Parse do XML
-        root = etree.fromstring(xml_data.encode("utf-8"))
+        # Tenta fazer o parse do XML
+        try:
+            root = etree.fromstring(xml_data.encode("utf-8"))
+        except etree.XMLSyntaxError:
+            return gerar_erro_xml("Erro ao processar o XML recebido.")
 
         # Extrai o GUID do formulário
         guid = root.findtext("Guid")
@@ -45,7 +52,7 @@ def consulta_cep():
         if "erro" in data:
             return gerar_erro_xml("CEP inválido ou não encontrado.")
 
-        # Retorna os dados do endereço em maiúsculo
+        # Retorna os dados do endereço
         return gerar_resposta_xml(guid, data)
 
     except Exception as e:
@@ -72,7 +79,7 @@ def gerar_resposta_xml(guid, data):
     adicionar_campo(fields, "ESTADO", data.get("uf", ""))
 
     # Inclui o GUID na resposta
-    etree.SubElement(return_value, "Guid").text = guid
+    etree.SubElement(return_value, "f113c885-2d76-4f08-acda-40138b028050").text = guid
 
     # Depuração: Imprimir XML antes de retornar
     xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=True).decode()
