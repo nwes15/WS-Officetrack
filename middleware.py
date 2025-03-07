@@ -125,6 +125,7 @@ def gerar_resposta_xml_v2(data):
     adicionar_campo_v2(fields, "COMPLEMENTO", data.get("complemento", ""))
     adicionar_campo_v2(fields, "BAIRRO", data.get("bairro", ""))
     adicionar_campo_v2(fields, "CIDADE", data.get("localidade", ""))
+    adicionar_campo_v2(fields, "ESTADO", data.get("estado", ""))
     adicionar_campo_v2(fields, "UF", data.get("uf", ""))
     
     # Adiciona campos exemplo conforme solicitado
