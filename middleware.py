@@ -9,7 +9,7 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # GUID fixo
-GUID_FIXO = "96d3454f-5c5f-41fd-b0ad-616753b22d8b"
+GUID_FIXO = "718e0e13-fec0-41d6-9dee-7b4813c6ec54"
 
 @app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
