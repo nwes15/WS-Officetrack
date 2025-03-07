@@ -9,7 +9,7 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # GUID fixo
-GUID_FIXO = "718e0e13-fec0-41d6-9dee-7b4813c6ec54"
+GUID_FIXO = "a4b72440-b2f6-407b-80fd-57a0ad39a337"
 
 @app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
@@ -125,7 +125,7 @@ def gerar_resposta_xml_v2(data):
     adicionar_campo_v2(fields, "COMPLEMENTO", data.get("complemento", ""))
     adicionar_campo_v2(fields, "BAIRRO", data.get("bairro", ""))
     adicionar_campo_v2(fields, "CIDADE", data.get("localidade", ""))
-    adicionar_campo_v2(fields, "ESTADO", data.get("uf", ""))
+    adicionar_campo_v2(fields, "UF", data.get("uf", ""))
     
     # Adiciona campos exemplo conforme solicitado
     adicionar_campo_v2(fields, "Test1", "ZZZ")
@@ -135,7 +135,7 @@ def gerar_resposta_xml_v2(data):
     adicionar_table_field(fields)
     
     # Adicionar campos adicionais do ReturnValueV2
-    etree.SubElement(return_value, "ShortText").text = "SHORT TEXT"
+    etree.SubElement(return_value, "ShortText").text = "DEU CERTO WES"
     etree.SubElement(return_value, "LongText")  # Vazio
     etree.SubElement(return_value, "Value").text = "58"
     
@@ -166,11 +166,6 @@ def adicionar_table_field(parent):
     adicionar_campo_v2(fields1, "TextTable", "Y")
     adicionar_campo_v2(fields1, "NumTable", "9")
     
-    # Segunda linha
-    row2 = etree.SubElement(rows, "Row")
-    fields2 = etree.SubElement(row2, "Fields")
-    adicionar_campo_v2(fields2, "TextTable", "X")
-    adicionar_campo_v2(fields2, "NumTable", "8")
 
 def gerar_erro_xml(mensagem):
     """Gera um XML de erro com mensagem personalizada no formato V2."""
@@ -190,7 +185,7 @@ def gerar_erro_xml(mensagem):
     # Criar seção ReturnValueV2 vazia
     return_value = etree.SubElement(response, "ReturnValueV2")
     etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = "ERRO"
+    etree.SubElement(return_value, "ShortText").text = "DEU ERRO WES"
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "0"
     
