@@ -9,7 +9,7 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # GUID fixo
-GUID_FIXO = "f113c885-2d76-4f08-acda-40138b028050"
+GUID_FIXO = "96d3454f-5c5f-41fd-b0ad-616753b22d8b"
 
 @app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
@@ -19,8 +19,7 @@ def consulta_cep():
 
         # Se os dados vierem como "application/x-www-form-urlencoded"
         if "application/x-www-form-urlencoded" in content_type:
-            xml_data = request.form.to_dict(flat=False)  # Captura os dados corretamente
-            xml_data = list(xml_data.keys())[0]  # Pega o XML enviado
+            xml_data = request.form.get("TextXML", "")  # Captura o valor do campo "TextXML"
             logging.debug(f"XML extraído do formulário: {xml_data}")
 
         # Se os dados vierem como "application/xml" ou "text/xml"
@@ -40,17 +39,14 @@ def consulta_cep():
         except etree.XMLSyntaxError:
             return gerar_erro_xml("Erro ao processar o XML recebido.")
 
-        # Procura o campo CEP no XML
-        cep = None
-        for field in root.findall(".//Field"):
-            if field.findtext("Id") == "CEP":
-                cep = field.findtext("Value")
-                break
+        # Processa os campos do XML
+        campos = processar_campos(root)
 
+        # Faz a requisição à API ViaCEP
+        cep = campos.get("CEP")
         if not cep:
             return gerar_erro_xml("Erro: CEP não informado no XML.")
 
-        # Faz a requisição à API ViaCEP
         response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
             return gerar_erro_xml("Erro ao consultar o CEP na API ViaCEP.")
@@ -59,59 +55,137 @@ def consulta_cep():
         if "erro" in data:
             return gerar_erro_xml("Erro: CEP inválido ou não encontrado.")
 
-        # Retorna os dados do endereço no formato esperado pelo OfficeTrak
-        return gerar_resposta_xml(data)
+        # Retorna os dados do endereço no novo formato
+        return gerar_resposta_xml_v2(data)
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
-def gerar_resposta_xml(data):
-    """Gera a resposta XML no formato esperado pelo OfficeTrak."""
-    response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
+def processar_campos(root):
+    """Processa os campos do XML e retorna um dicionário com os valores."""
+    campos = {}
+    for field in root.findall(".//Field"):
+        id = field.findtext("ID") or field.findtext("Id")  # Tenta ambos os formatos
+        value = field.findtext("Value")
+        if id and value:
+            campos[id] = value
 
-    # Mensagem de sucesso
+    for table_field in root.findall(".//TableField"):
+        table_id = table_field.findtext("ID")
+        rows = []
+        for row in table_field.findall(".//Row"):
+            row_data = {}
+            for field in row.findall(".//Field"):
+                id = field.findtext("ID") or field.findtext("Id")
+                value = field.findtext("Value")
+                if id and value:
+                    row_data[id] = value
+            rows.append(row_data)
+        campos[table_id] = rows
+
+    return campos
+
+def gerar_resposta_xml_v2(data):
+    """Gera a resposta XML V2 com os dados do endereço."""
+    # Definir namespaces
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
+    
+    # Criar o elemento raiz com namespaces
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+    
+    # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = "CEP encontrado com sucesso"
-
-    # Retorno dos valores
+    
+    # Criar seção ReturnValueV2
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
+    
+    # Mapear dados do CEP para os novos campos
+    # Você pode ajustar este mapeamento conforme necessário
+    adicionar_campo_v2(fields, "LOGRADOURO", data.get("logradouro", ""))
+    adicionar_campo_v2(fields, "COMPLEMENTO", data.get("complemento", ""))
+    adicionar_campo_v2(fields, "BAIRRO", data.get("bairro", ""))
+    adicionar_campo_v2(fields, "CIDADE", data.get("localidade", ""))
+    adicionar_campo_v2(fields, "ESTADO", data.get("uf", ""))
+    
+    # Adiciona campos exemplo conforme solicitado
+    adicionar_campo_v2(fields, "Test1", "ZZZ")
+    adicionar_campo_v2(fields, "Num1", "777")
+    
+    # Adicionar TableField exemplo
+    adicionar_table_field(fields)
+    
+    # Adicionar campos adicionais do ReturnValueV2
+    etree.SubElement(return_value, "ShortText").text = "SHORT TEXT"
+    etree.SubElement(return_value, "LongText")  # Vazio
+    etree.SubElement(return_value, "Value").text = "58"
+    
+    # Gerar XML com declaração e encoding utf-16
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+    
+    logging.debug(f"XML de Resposta V2: {xml_str}")  # Depuração no console
+    
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
-    # Adiciona os campos do endereço
-    adicionar_campo(fields, "LOGRADOURO", data.get("logradouro", ""))
-    adicionar_campo(fields, "COMPLEMENTO", data.get("complemento", ""))
-    adicionar_campo(fields, "BAIRRO", data.get("bairro", ""))
-    adicionar_campo(fields, "CIDADE", data.get("localidade", ""))
-    adicionar_campo(fields, "ESTADO", data.get("uf", ""))
-
-    # Inclui o GUID fixo na resposta
-    etree.SubElement(return_value, "Guid").text = GUID_FIXO
-
-    # Adiciona ShortText, LongText e Value
-    etree.SubElement(return_value, "ShortText").text = "Endereço retornado com sucesso"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "1"
-
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=True).decode("utf-16")
-    logging.debug(f"XML de Resposta: {xml_str}")  # Depuração no console
-
-    return Response(xml_str, content_type="application/xml; charset=utf-16")
-
-def gerar_erro_xml(mensagem):
-    """Gera um XML de erro com mensagem personalizada."""
-    response = etree.Element("ResponseV2", xmlns_xsi="http://www.w3.org/2001/XMLSchema-instance", xmlns_xsd="http://www.w3.org/2001/XMLSchema")
-
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = mensagem
-
-    return Response(etree.tostring(response, encoding="utf-16", xml_declaration=True), content_type="application/xml; charset=utf-16")
-
-def adicionar_campo(parent, field_id, value):
-    """Adiciona um campo ao XML."""
+def adicionar_campo_v2(parent, field_id, value):
+    """Adiciona um campo ao XML no formato V2."""
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
+
+def adicionar_table_field(parent):
+    """Adiciona um TableField com duas linhas de exemplo."""
+    table_field = etree.SubElement(parent, "TableField")
+    etree.SubElement(table_field, "ID").text = "Table1"
+    rows = etree.SubElement(table_field, "Rows")
+    
+    # Primeira linha
+    row1 = etree.SubElement(rows, "Row")
+    fields1 = etree.SubElement(row1, "Fields")
+    adicionar_campo_v2(fields1, "TextTable", "Y")
+    adicionar_campo_v2(fields1, "NumTable", "9")
+    
+    # Segunda linha
+    row2 = etree.SubElement(rows, "Row")
+    fields2 = etree.SubElement(row2, "Fields")
+    adicionar_campo_v2(fields2, "TextTable", "X")
+    adicionar_campo_v2(fields2, "NumTable", "8")
+
+def gerar_erro_xml(mensagem):
+    """Gera um XML de erro com mensagem personalizada no formato V2."""
+    # Definir namespaces
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
+    
+    # Criar o elemento raiz com namespaces
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+    
+    # Adicionar seção de mensagem
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = mensagem
+    
+    # Criar seção ReturnValueV2 vazia
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    etree.SubElement(return_value, "Fields")
+    etree.SubElement(return_value, "ShortText").text = "ERRO"
+    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "Value").text = "0"
+    
+    # Gerar XML com declaração e encoding utf-16
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+    
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
