@@ -12,6 +12,11 @@ def consultar_cep():
     try:
         # Recebe o XML do corpo da requisição
         xml_recebido = request.data
+
+        # Log para depuração (opcional)
+        print("XML Recebido:", xml_recebido.decode('utf-8'))
+
+        # Parseia o XML recebido
         root = ET.fromstring(xml_recebido)
 
         # Extrai o valor do campo CEP
@@ -88,12 +93,12 @@ def consultar_cep():
         # Retorna o XML como resposta
         return Response(xml_resposta, content_type='application/xml')
 
-    except ET.ParseError:
+    except ET.ParseError as e:
         # Se o XML estiver malformado, retorna uma mensagem de erro
-        resposta_erro = '''
+        resposta_erro = f'''
         <Response>
             <Message>
-                <Text>Erro ao processar o XML recebido</Text>
+                <Text>Erro ao processar o XML recebido: {str(e)}</Text>
             </Message>
         </Response>
         '''
