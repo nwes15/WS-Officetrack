@@ -11,41 +11,36 @@ logging.basicConfig(level=logging.DEBUG)
 GUID = "f113c885-2d76-4f08-acda-40138b028050"
 
 @app.route("/consultar_cep", methods=["POST"])
+@app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
     try:
-        logging.debug(f"Raw request data: {request.data}")  # 🔥 Mostra os dados recebidos
-        logging.debug(f"Headers recebidos: {dict(request.headers)}")  # 🔥 Log dos headers
+        # 🔴 Log para depuração
+        logging.debug(f"Raw request data: {request.data}")  
+        logging.debug(f"Headers recebidos: {dict(request.headers)}")  
 
+        # Verifica se o corpo da requisição está vazio
         if not request.data or request.data.strip() == b'':
             return gerar_erro_xml("Erro: Requisição sem corpo.")
-
-        xml_data = request.data.decode("utf-8").strip()
-        logging.debug(f"XML recebido: {xml_data}") 
-    
-    try:
-        # Verifica se o corpo da requisição está vazio
-        if not request.data:
-            return gerar_erro_xml("Requisição sem corpo.")
 
         # Lê o corpo da requisição como XML
         xml_data = request.data.decode("utf-8").strip()
         logging.debug(f"XML recebido: {xml_data}")
 
         if not xml_data:
-            return gerar_erro_xml("XML recebido está vazio.")
+            return gerar_erro_xml("Erro: XML recebido está vazio.")
 
-        # Tenta fazer o parse do XML
+        # 🔴 Tenta fazer o parse do XML
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
         except etree.XMLSyntaxError:
             return gerar_erro_xml("Erro ao processar o XML recebido.")
 
-        # Extrai o GUID do formulário
+        # 🔴 Extrai o GUID do formulário
         guid = root.findtext("Guid")
         if not guid:
-            return gerar_erro_xml("GUID não encontrado no XML.")
+            return gerar_erro_xml("Erro: GUID não encontrado no XML.")
 
-        # Procura o campo CEP no XML
+        # 🔴 Procura o campo CEP no XML
         cep = None
         for field in root.findall(".//Field"):
             if field.findtext("Id") == "CEP":
@@ -53,23 +48,24 @@ def consulta_cep():
                 break
 
         if not cep:
-            return gerar_erro_xml("CEP não informado no XML.")
+            return gerar_erro_xml("Erro: CEP não informado no XML.")
 
-        # Faz a requisição à API ViaCEP
+        # 🔴 Faz a requisição à API ViaCEP
         response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
             return gerar_erro_xml("Erro ao consultar o CEP na API ViaCEP.")
 
         data = response.json()
         if "erro" in data:
-            return gerar_erro_xml("CEP inválido ou não encontrado.")
+            return gerar_erro_xml("Erro: CEP inválido ou não encontrado.")
 
-        # Retorna os dados do endereço
+        # 🔴 Retorna os dados do endereço
         return gerar_resposta_xml(guid, data)
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+
 
 def gerar_resposta_xml(guid, data):
     """Gera a resposta XML com os dados do endereço."""
