@@ -11,23 +11,27 @@ logging.basicConfig(level=logging.DEBUG)
 GUID = "f113c885-2d76-4f08-acda-40138b028050"
 
 @app.route("/consultar_cep", methods=["POST"])
-@app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
     try:
-        # 🔴 Log para depuração
-        logging.debug(f"Raw request data: {request.data}")  
-        logging.debug(f"Headers recebidos: {dict(request.headers)}")  
+        content_type = request.headers.get("Content-Type", "").lower()
+        logging.debug(f"Tipo de conteúdo recebido: {content_type}")
 
-        # Verifica se o corpo da requisição está vazio
-        if not request.data or request.data.strip() == b'':
-            return gerar_erro_xml("Erro: Requisição sem corpo.")
+        # 🔴 Se os dados vierem como "application/x-www-form-urlencoded"
+        if "application/x-www-form-urlencoded" in content_type:
+            xml_data = request.form.to_dict(flat=False)  # Captura os dados corretamente
+            xml_data = list(xml_data.keys())[0]  # Pega o XML enviado
+            logging.debug(f"XML extraído do formulário: {xml_data}")
 
-        # Lê o corpo da requisição como XML
-        xml_data = request.data.decode("utf-8").strip()
-        logging.debug(f"XML recebido: {xml_data}")
+        # 🔴 Se os dados vierem como "application/xml" ou "text/xml"
+        elif "application/xml" in content_type or "text/xml" in content_type:
+            if not request.data or request.data.strip() == b'':
+                return gerar_erro_xml("Erro: Requisição XML sem corpo.")
 
-        if not xml_data:
-            return gerar_erro_xml("Erro: XML recebido está vazio.")
+            xml_data = request.data.decode("utf-8").strip()
+            logging.debug(f"XML recebido: {xml_data}")
+
+        else:
+            return gerar_erro_xml("Erro: Formato não suportado. Use XML ou Form-urlencoded.")
 
         # 🔴 Tenta fazer o parse do XML
         try:
@@ -65,6 +69,7 @@ def consulta_cep():
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+
 
 
 def gerar_resposta_xml(guid, data):
