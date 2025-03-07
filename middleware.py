@@ -13,6 +13,16 @@ GUID = "f113c885-2d76-4f08-acda-40138b028050"
 @app.route("/consultar_cep", methods=["POST"])
 def consulta_cep():
     try:
+        logging.debug(f"Raw request data: {request.data}")  # 🔥 Mostra os dados recebidos
+        logging.debug(f"Headers recebidos: {dict(request.headers)}")  # 🔥 Log dos headers
+
+        if not request.data or request.data.strip() == b'':
+            return gerar_erro_xml("Erro: Requisição sem corpo.")
+
+        xml_data = request.data.decode("utf-8").strip()
+        logging.debug(f"XML recebido: {xml_data}") 
+    
+    try:
         # Verifica se o corpo da requisição está vazio
         if not request.data:
             return gerar_erro_xml("Requisição sem corpo.")
