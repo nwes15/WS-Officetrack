@@ -59,11 +59,11 @@ def consulta_cep():
         # Faz a requisição à API ViaCEP
         cep = campos.get("CEP")
         if not cep:
-            return gerar_erro_xml("Erro: CEP não informado no XML.")
+            return gerar_erro_xml("Erro: CEP não informado no campo CEP.")
 
         response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
-            return gerar_erro_xml("Erro ao consultar o CEP na API ViaCEP.")
+            return gerar_erro_xml("Erro ao consultar o CEP - Verifique e tente novamente.")
 
         data = response.json()
         if "erro" in data:
