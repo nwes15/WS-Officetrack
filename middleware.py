@@ -4,9 +4,9 @@ from lxml import etree
 import logging
 from dotenv import load_dotenv
 import os
+import json
 
-
-dotenv.load_dotenv()
+load_dotenv()
 
 app = Flask(__name__)
 
