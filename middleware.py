@@ -217,9 +217,10 @@ def consultar_groq():
 
         if request.form:
             for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-                xml_data = request.form.get(possible_name)
-                logging.debug(f"XML recebido: {possible_name}")
-                break
+                if possible_name in request.form:
+                    xml_data = request.form.get(possible_name)
+                    logging.debug(f"XML encontrado no campo {possible_name}")
+                    break
 
             if not xml_data and len(request.form) > 0:
                 first_key = next(iter(request.form))
@@ -234,30 +235,30 @@ def consultar_groq():
                 pass
 
         if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar sua pergunta.")
+            return gerar_erro_xml_groq("Não foi possível encontrar dados XML na requisição")
 
-        logging.debug(f"XML recebido: {xml_data}")
+        logging.debug(f"XML para processar: {xml_data}")
 
         try:
             root = etree.fromstring(xml_data.encode('utf-8'))
         except etree.XMLSyntaxError:
-            return gerar_erro_xml("XML inválido.")
+            return gerar_erro_xml_groq("XML inválido.")
 
         campos = processar_campos_groq(root)
 
         pergunta = campos.get("PERGUNTA")
         if not pergunta:
-            return gerar_erro_xml("Pergunta não encontrada.")
+            return gerar_erro_xml_groq("Pergunta não encontrada no campo PERGUNTA.")
 
         resposta_groq = consultar_groq_api(pergunta)
         if not resposta_groq:
-            return gerar_erro_xml("Erro ao consultar a API do Groq.")
+            return gerar_erro_xml_groq("Erro ao consultar a API do Groq.")
 
         return gerar_resposta_xml_v2_groq(resposta_groq)
 
     except Exception as e:
         logging.error(f"Erro ao processar requisição: {e}")
-        return gerar_erro_xml("Erro interno no servidor: {str(e)}")
+        return gerar_erro_xml_groq(f"Erro interno no servidor: {str(e)}")
 
 def consultar_groq_api(pergunta):
     headers = {
@@ -266,12 +267,16 @@ def consultar_groq_api(pergunta):
     }
 
     data = {
-        "question": pergunta
+        "model": "llama3-70b-8192",
+        "messages": [
+            {"role": "user", "content": pergunta}
+        ]
     }
+    
     try:
-        response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(data))
-        if response.stats_code == 200:
-            return response.json().get("answer")
+        response = requests.post(GROQ_API_URL, headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
         else:
             logging.error(f"Erro ao consultar API do Groq: {response.text}")
             return None
@@ -281,16 +286,25 @@ def consultar_groq_api(pergunta):
 
 def processar_campos_groq(root):
     campos = {}
-    for field in root.findall(".//field"):
-        id = field.findtext("ID") or field.findtext("id")
-        value = field.findtext("value")
+    # Tenta encontrar os campos usando diferentes caminhos e formatos
+    for field in root.findall(".//Field"):
+        id = field.findtext("ID") or field.findtext("Id")
+        value = field.findtext("Value")
         if id and value:
             campos[id] = value
-
+    
+    # Se não encontrar usando Field, tenta com field (minúsculo)
+    if not campos:
+        for field in root.findall(".//field"):
+            id = field.findtext("ID") or field.findtext("Id") or field.findtext("id")
+            value = field.findtext("Value") or field.findtext("value")
+            if id and value:
+                campos[id] = value
+    
     return campos
 
 def gerar_resposta_xml_v2_groq(resposta_groq):
-    nsmap ={
+    nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
         'xsd': 'http://www.w3.org/2001/XMLSchema'
     }
@@ -300,26 +314,25 @@ def gerar_resposta_xml_v2_groq(resposta_groq):
     message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = "Resposta obtida com sucesso."
 
-    return_value = etree.SubElement(message, "ReturnValueV2")
+    return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
 
     adicionar_campo_v2_groq(fields, "RESPOSTA", resposta_groq)
-    
 
     adicionar_table_field_groq(fields)
 
     etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
-    etree.SubElements(return_value, "LongText")
+    etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "58"
 
-    xml_declaration = '<?xml version="1.0" encoding="UTF-8"?>'
-    xml_str = etree.tostring(response, pretty_print=True, xml_declaration=xml_declaration, encoding='utf-16')
-    xml_str = xml_declaratio + "\n" + xml_str
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
 
     logging.debug(f"Resposta gerada: {xml_str}")
-    return Response(xml_str.encode('utf-16'), content_type="aplication/xml, charset=utf-16")
+    return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
 
-def adicionar_campo_v2_groq(fields, id, value):
+def adicionar_campo_v2_groq(parent, field_id, value):
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
@@ -342,7 +355,7 @@ def adicionar_table_field_groq(parent):
     adicionar_campo_v2_groq(fields2, "NumTable", "8")
 
 def gerar_erro_xml_groq(mensagem):
-    nsmap ={
+    nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
         'xsd': 'http://www.w3.org/2001/XMLSchema'
     }
@@ -352,17 +365,17 @@ def gerar_erro_xml_groq(mensagem):
     message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = mensagem
 
-    return_value = etree.SubElement(message, "ReturnValueV2")
+    return_value = etree.SubElement(response, "ReturnValueV2")
     etree.SubElement(return_value, "Fields")
     etree.SubElement(return_value, "ShortText").text = "Deu Erro"
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "0"
 
-    xml_declaration = '<?xml version="1.0" encoding="UTF-16"?>'
-    xml_str = etree.tostring(response, pretty_print=True, xml_declaration=xml_declaration, encoding='utf-16')
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str = xml_declaration + "\n" + xml_str
 
-    return Response(xml_str.encode('utf-16'), content_type="application/xml, charset=utf-16")
-
+    return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
+    
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
