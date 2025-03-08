@@ -224,7 +224,7 @@ def consultar_groq():
         xml_data = None
 
         if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]
+            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
                 xml_data = request.form.get(possible_name)
                 logging.debug(f"XML recebido: {possible_name}")
                 break
