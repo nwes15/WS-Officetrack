@@ -5,7 +5,14 @@ import logging
 from dotenv import load_dotenv
 import os
 
+
+dotenv.load_dotenv()
+
 app = Flask(__name__)
+
+
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
@@ -199,21 +206,6 @@ def gerar_erro_xml(mensagem):
     
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
-
-
-
-dotenv.load_dotenv()
-
-app = Flask(__name__)
-
-logging.basicConfig(level=logging.DEBUG)
-
-GUID_FIXO = "0560c12a-7709-48ab-a43d-59197c2ff120"
-
-GROQ_API_KEY = os.getenv('GROQ_API_KEY')
-GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 @app.route('/consultar_groq', methods=['POST'])
 def consultar_groq():
