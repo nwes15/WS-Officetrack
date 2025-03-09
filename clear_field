@@ -55,7 +55,14 @@ def resposta_vazia():
         # Processa os campos do XML
         campos = processar_campos(root)
 
-        # Recria o XML no padrão esperado, mas com os campos vazios
+        # Verifica se o campo RESPOSTA existe
+        if "RESPOSTA" not in campos:
+            return gerar_erro_xml("Erro: Campo 'RESPOSTA' não encontrado no XML.")
+
+        # Limpa o valor do campo RESPOSTA
+        campos["RESPOSTA"] = ""
+
+        # Retorna o XML com o campo RESPOSTA vazio
         return gerar_resposta_xml_v2(campos)
 
     except Exception as e:
@@ -87,7 +94,7 @@ def processar_campos(root):
     return campos
 
 def gerar_resposta_xml_v2(campos):
-    """Gera a resposta XML V2 com os campos vazios."""
+    """Gera a resposta XML V2 com os campos fornecidos."""
     # Definir namespaces
     nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
@@ -105,9 +112,9 @@ def gerar_resposta_xml_v2(campos):
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
     
-    # Adicionar campos dinamicamente, mas com valores vazios
-    for campo in campos.keys():
-        adicionar_campo_v2(fields, campo, "")
+    # Adicionar campos dinamicamente
+    for campo, valor in campos.items():
+        adicionar_campo_v2(fields, campo, valor)
     
     # Adicionar TableField exemplo
     adicionar_table_field(fields)
