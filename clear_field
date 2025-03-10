@@ -16,68 +16,63 @@ def resposta_vazia():
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
         
-        # Tenta extrair o XML de várias fontes possíveis
-        xml_data = None
-        
-        # Tenta do form primeiro (com vários nomes possíveis)
-        if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-                if possible_name in request.form:
-                    xml_data = request.form.get(possible_name)
-                    logging.debug(f"XML encontrado no campo {possible_name}")
-                    break
-            
-            # Se não encontrou por nome específico, tenta o primeiro campo do form
-            if not xml_data and len(request.form) > 0:
-                first_key = next(iter(request.form))
-                xml_data = request.form.get(first_key)
-                logging.debug(f"Usando primeiro campo do form: {first_key}")
-        
-        # Se não encontrou no form, tenta do corpo da requisição
-        if not xml_data and request.data:
-            try:
-                xml_data = request.data.decode('utf-8')
-                logging.debug("Usando dados brutos do corpo da requisição")
-            except:
-                pass
+        xml_data = extrair_xml(request)
         
         if not xml_data:
             return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
         
         logging.debug(f"XML para processar: {xml_data}")
 
-        # Tenta fazer o parse do XML
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
         except etree.XMLSyntaxError:
             return gerar_erro_xml("Erro ao processar o XML recebido.")
 
-        # Processa os campos do XML
         campos = processar_campos(root)
 
-        # Verifica se o campo RESPOSTA existe
         if "RESPOSTA" not in campos:
             return gerar_erro_xml("Erro: Campo 'RESPOSTA' não encontrado no XML.")
 
-        # Limpa o valor do campo RESPOSTA
         campos["RESPOSTA"] = ""
-
-        # Retorna o XML com o campo RESPOSTA vazio
+        
         return gerar_resposta_xml_v2(campos)
-
+    
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
+def extrair_xml(request):
+    xml_data = None
+    
+    if request.form:
+        for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+            if possible_name in request.form:
+                xml_data = request.form.get(possible_name)
+                logging.debug(f"XML encontrado no campo {possible_name}")
+                break
+        
+        if not xml_data and len(request.form) > 0:
+            first_key = next(iter(request.form))
+            xml_data = request.form.get(first_key)
+            logging.debug(f"Usando primeiro campo do form: {first_key}")
+    
+    if not xml_data and request.data:
+        try:
+            xml_data = request.data.decode('utf-8')
+            logging.debug("Usando dados brutos do corpo da requisição")
+        except:
+            pass
+    
+    return xml_data
+
 def processar_campos(root):
-    """Processa os campos do XML e retorna um dicionário com os valores."""
     campos = {}
     for field in root.findall(".//Field"):
-        id = field.findtext("ID") or field.findtext("Id")  # Tenta ambos os formatos
+        id = field.findtext("ID") or field.findtext("Id")
         value = field.findtext("Value")
         if id and value:
             campos[id] = value
-
+    
     for table_field in root.findall(".//TableField"):
         table_id = table_field.findtext("ID")
         rows = []
@@ -90,98 +85,75 @@ def processar_campos(root):
                     row_data[id] = value
             rows.append(row_data)
         campos[table_id] = rows
-
+    
     return campos
 
 def gerar_resposta_xml_v2(campos):
-    """Gera a resposta XML V2 com os campos fornecidos."""
-    # Definir namespaces
     nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
         'xsd': 'http://www.w3.org/2001/XMLSchema'
     }
     
-    # Criar o elemento raiz com namespaces
     response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = "Operação realizada com sucesso"
     
-    # Criar seção ReturnValueV2
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
     
-    # Adicionar campos dinamicamente
     for campo, valor in campos.items():
         adicionar_campo_v2(fields, campo, valor)
     
-    # Adicionar TableField exemplo
     adicionar_table_field(fields)
     
-    # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "DEU CERTO WES"
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "58"
     
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str = xml_declaration + "\n" + xml_str
-    
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    return gerar_response_xml(response)
 
 def adicionar_campo_v2(parent, field_id, value):
-    """Adiciona um campo ao XML no formato V2."""
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
 
 def adicionar_table_field(parent):
-    """Adiciona um TableField com duas linhas de exemplo."""
     table_field = etree.SubElement(parent, "TableField")
     etree.SubElement(table_field, "ID").text = "Table1"
     rows = etree.SubElement(table_field, "Rows")
     
-    # Primeira linha
     row1 = etree.SubElement(rows, "Row")
     fields1 = etree.SubElement(row1, "Fields")
     adicionar_campo_v2(fields1, "TextTable", "Y")
     adicionar_campo_v2(fields1, "NumTable", "9")
     
-    # Segunda linha
     row2 = etree.SubElement(rows, "Row")
     fields2 = etree.SubElement(row2, "Fields")
     adicionar_campo_v2(fields2, "TextTable", "X")
     adicionar_campo_v2(fields2, "NumTable", "8")
 
 def gerar_erro_xml(mensagem):
-    """Gera um XML de erro com mensagem personalizada no formato V2."""
-    # Definir namespaces
     nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
         'xsd': 'http://www.w3.org/2001/XMLSchema'
     }
     
-    # Criar o elemento raiz com namespaces
     response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = mensagem
     
-    # Criar seção ReturnValueV2 vazia
     return_value = etree.SubElement(response, "ReturnValueV2")
     etree.SubElement(return_value, "Fields")
     etree.SubElement(return_value, "ShortText").text = "DEU ERRO WES"
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "0"
     
-    # Gerar XML com declaração e encoding utf-16
+    return gerar_response_xml(response)
+
+def gerar_response_xml(element):
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = etree.tostring(element, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str = xml_declaration + "\n" + xml_str
-    
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
 if __name__ == "__main__":
