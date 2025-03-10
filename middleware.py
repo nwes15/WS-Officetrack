@@ -145,7 +145,7 @@ def gerar_resposta_xml_v2(data):
     adicionar_table_field(fields)
     
     # Adicionar campos adicionais do ReturnValueV2
-    etree.SubElement(return_value, "ShortText").text = "DEU CERTO WES"
+    etree.SubElement(return_value, "ShortText").text = "CEP ENCONTRADO - INFOS ABAIXO"
     etree.SubElement(return_value, "LongText")  # Vazio
     etree.SubElement(return_value, "Value").text = "58"
     
