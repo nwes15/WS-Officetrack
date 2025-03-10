@@ -112,16 +112,9 @@ def gerar_resposta_xml_v2(campos):
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
     
-    # Adicionar campos dinamicamente - garantir que RESPOSTA esteja vazio
+    # Adicionar campos dinamicamente
     for campo, valor in campos.items():
-        if campo == "RESPOSTA":
-            adicionar_campo_v2(fields, campo, "")  # Força valor vazio para RESPOSTA
-        elif not isinstance(valor, list):  # Verifica se não é uma lista (caso de TableField)
-            adicionar_campo_v2(fields, campo, valor)
-    
-    # Garantir que RESPOSTA sempre existe, mesmo se não estiver nos campos
-    if "RESPOSTA" not in campos:
-        adicionar_campo_v2(fields, "RESPOSTA", "")
+        adicionar_campo_v2(fields, campo, valor)
     
     # Adicionar TableField exemplo
     adicionar_table_field(fields)
@@ -135,8 +128,6 @@ def gerar_resposta_xml_v2(campos):
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
     xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str = xml_declaration + "\n" + xml_str
-    
-    logging.debug(f"XML de resposta gerado: {xml_str[:500]}...")  # Mostra o início para não inundar os logs
     
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
