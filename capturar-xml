@@ -1,4 +1,5 @@
 from flask import Flask, request, Response
+import requests
 from lxml import etree
 import logging
 
@@ -7,13 +8,15 @@ app = Flask(__name__)
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/capturar_xml", methods=["POST"])
-def capturar_xml():
+# GUID fixo
+GUID_FIXO = "a4b72440-b2f6-407b-80fd-57a0ad39a337"
+
+@app.route("/consultar_cep", methods=["POST"])
+def consulta_cep():
     try:
-        # Log do tipo de conteúdo recebido
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
-
+        
         # Tenta extrair o XML de várias fontes possíveis
         xml_data = None
         
@@ -36,59 +39,81 @@ def capturar_xml():
             try:
                 xml_data = request.data.decode('utf-8')
                 logging.debug("Usando dados brutos do corpo da requisição")
-            except Exception as e:
-                logging.error(f"Erro ao decodificar request.data: {str(e)}")
-                return Response(
-                    "<Erro>Erro ao decodificar request.data</Erro>",
-                    content_type="application/xml",
-                    status=400
-                )
+            except:
+                pass
         
-        # Verifica se o XML foi encontrado
         if not xml_data:
-            logging.error("Erro: Nenhum dado XML foi encontrado na requisição.")
-            return Response(
-                "<Erro>Nenhum dado XML foi encontrado na requisição.</Erro>",
-                content_type="application/xml",
-                status=400
-            )
+            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
         
-        # Log do XML recebido
         logging.debug(f"XML para processar: {xml_data}")
 
         # Tenta fazer o parse do XML
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
-        except etree.XMLSyntaxError as e:
-            logging.error(f"Erro de sintaxe no XML: {str(e)}")
-            return Response(
-                f"<Erro>Erro de sintaxe no XML: {str(e)}</Erro>",
-                content_type="application/xml",
-                status=400
-            )
-        except Exception as e:
-            logging.error(f"Erro ao processar o XML: {str(e)}")
-            return Response(
-                f"<Erro>Erro ao processar o XML: {str(e)}</Erro>",
-                content_type="application/xml",
-                status=500
-            )
+        except etree.XMLSyntaxError:
+            return gerar_erro_xml("Erro ao processar o XML recebido.")
 
-        # Se chegou aqui, o XML foi processado com sucesso
-        logging.debug("XML processado com sucesso.")
-        return Response(
-            "<Sucesso>XML processado com sucesso.</Sucesso>",
-            content_type="application/xml",
-            status=200
-        )
+        # Processa os campos do XML
+        campos = processar_campos(root)
+
 
     except Exception as e:
-        logging.error(f"Erro interno no servidor: {str(e)}", exc_info=True)
-        return Response(
-            f"<Erro>Erro interno no servidor: {str(e)}</Erro>",
-            content_type="application/xml",
-            status=500
-        )
+        logging.error(f"Erro interno: {str(e)}")
+        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+
+def processar_campos(root):
+    """Processa os campos do XML e retorna um dicionário com os valores."""
+    campos = {}
+    for field in root.findall(".//Field"):
+        id = field.findtext("ID") or field.findtext("Id")  # Tenta ambos os formatos
+        value = field.findtext("Value")
+        if id and value:
+            campos[id] = value
+
+    for table_field in root.findall(".//TableField"):
+        table_id = table_field.findtext("ID")
+        rows = []
+        for row in table_field.findall(".//Row"):
+            row_data = {}
+            for field in row.findall(".//Field"):
+                id = field.findtext("ID") or field.findtext("Id")
+                value = field.findtext("Value")
+                if id and value:
+                    row_data[id] = value
+            rows.append(row_data)
+        campos[table_id] = rows
+
+    return campos
+
+
+def gerar_erro_xml(mensagem):
+    """Gera um XML de erro com mensagem personalizada no formato V2."""
+    # Definir namespaces
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
+    
+    # Criar o elemento raiz com namespaces
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+    
+    # Adicionar seção de mensagem
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = mensagem
+    
+    # Criar seção ReturnValueV2 vazia
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    etree.SubElement(return_value, "Fields")
+    etree.SubElement(return_value, "ShortText").text = "DEU ERRO"
+    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "Value").text = "0"
+    
+    # Gerar XML com declaração e encoding utf-16
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+    
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
