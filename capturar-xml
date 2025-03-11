@@ -7,7 +7,7 @@ app = Flask(__name__)
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/customer_web_service", methods=["POST"])
+@app.route("/capturar_xml", methods=["POST"])
 def customer_web_service():
     try:
         # Log do tipo de conteúdo recebido
