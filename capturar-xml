@@ -3,15 +3,15 @@ import logging
 
 app = Flask(__name__)
 
-# Configuração do logger
+# Configuração do logger para exibir logs no console
 logging.basicConfig(level=logging.DEBUG)
 
 @app.route("/capturar_xml", methods=["POST"])
 def capturar_xml():
     try:
-        xml_data = request.data.decode("utf-8")  # Captura o XML da requisição
-        logging.debug(f"XML recebido:\n{xml_data}")  # Exibe o XML no log
-        return "XML capturado", 200
+        xml_data = request.data.decode("utf-8")  # Captura o XML completo
+        logging.debug(f"\n===== XML RECEBIDO =====\n{xml_data}\n========================")  
+        return "XML capturado com sucesso", 200
     except Exception as e:
         logging.error(f"Erro ao capturar XML: {str(e)}")
         return "Erro ao processar XML", 500
