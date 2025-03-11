@@ -39,8 +39,8 @@ def capturar_xml():
         if xml_data:
             logging.debug(f"XML recebido: {xml_data}")
             
-            # Retorna a resposta XML fixa
-            return gerar_resposta_xml()
+            # Retorna a resposta XML no formato V2
+            return gerar_resposta_xml_v2()
         else:
             return "Nenhum XML encontrado na requisição.", 400
 
@@ -48,23 +48,33 @@ def capturar_xml():
         logging.error(f"Erro interno: {str(e)}")
         return f"Erro interno no servidor: {str(e)}", 500
 
-def gerar_resposta_xml():
-    """Gera a resposta XML fixa para o aplicativo."""
-    xml_response = """
-    <Response>
-        <Message>
-            <Text>Invalid data</Text>
-            <Icon>Warning/Critical/Info</Icon>
-            <ButtonText>OK</ButtonText>
-        </Message>
-        <ReturnValue>
-            <ShortText>XML CAPTURADO</ShortText>
-            <LongText>Seu XML está disponível nas logs</LongText>
-            <Value>OK</Value>
-            <Action>SendEntry</Action>
-        </ReturnValue>
-    </Response>
-    """
-    return Response(xml_response, content_type="application/xml")
+def gerar_resposta_xml_v2():
+    """Gera a resposta XML no formato V2."""
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
+    
+    response = etree.Element("Response", nsmap=nsmap)
+    
+    message = etree.SubElement(response, "Message")
+    etree.SubElement(message, "Text").text = "Invalid data"
+    etree.SubElement(message, "Icon").text = "Warning/Critical/Info"
+    etree.SubElement(message, "ButtonText").text = "OK"
+    
+    return_value = etree.SubElement(response, "ReturnValue")
+    etree.SubElement(return_value, "ShortText").text = "Capturado com sucesso"
+    etree.SubElement(return_value, "LongText").text = "Seu XML está disponivel nas logs"
+    etree.SubElement(return_value, "Value").text = "OK"
+    etree.SubElement(return_value, "Action").text = "SendEntry"
+    
+    fields = etree.SubElement(return_value, "Fields")
+
+    #Gerar XML com declaração e encoding utf-16
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
 # Remova a linha app.run() para o Render
