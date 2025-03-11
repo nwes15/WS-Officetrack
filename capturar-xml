@@ -1,53 +1,62 @@
-from flask import Flask, request
+from flask import Flask, request, Response
+from lxml import etree
 import logging
 
 app = Flask(__name__)
 
 # Configuração do logger
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/capturar_xml", methods=["POST"])
-def capturar_xml():
+@app.route("/consultar_cep", methods=["POST"])
+def consulta_cep():
     try:
-        # Logando os headers da requisição
-        logging.debug(f"Headers da requisição: {request.headers}")
-        
-        content_type = request.headers.get("Content-Type", "").lower()
-        logging.debug(f"Tipo de conteúdo recebido: {content_type}")
+        # Verifica se o request contém dados no form
+        if not request.form:
+            return gerar_erro_xml("Erro: Nenhum dado foi enviado no formulário.")
 
-        if "xml" not in content_type:
-            logging.error("Erro: Tipo de conteúdo inválido. Esperado application/xml ou text/xml")
-            return "Erro: Tipo de conteúdo inválido. Esperado application/xml ou text/xml", 400
-
+        # Tenta extrair o XML do request.form
         xml_data = None
+        for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+            if possible_name in request.form:
+                xml_data = request.form.get(possible_name)
+                logging.debug(f"XML encontrado no campo {possible_name}")
+                break
 
-        # Tenta pegar XML do form-data
-        if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-                if possible_name in request.form:
-                    xml_data = request.form.get(possible_name)
-                    logging.debug(f"XML encontrado no campo {possible_name}")
-                    break
+        # Se não encontrou por nome específico, tenta o primeiro campo do form
+        if not xml_data and len(request.form) > 0:
+            first_key = next(iter(request.form))
+            xml_data = request.form.get(first_key)
+            logging.debug(f"Usando primeiro campo do form: {first_key}")
 
-        # Se não encontrou no form, tenta pegar do corpo da requisição
-        if not xml_data and request.data:
-            try:
-                xml_data = request.data.decode("utf-8")
-                logging.debug("XML capturado do corpo da requisição")
-            except Exception as e:
-                logging.error(f"Erro ao decodificar XML: {str(e)}")
-                return f"Erro ao decodificar XML: {str(e)}", 500
-
+        # Verifica se o XML foi encontrado
         if not xml_data:
-            logging.error("Erro: Nenhum XML encontrado na requisição")
-            return "Erro: Nenhum XML encontrado na requisição", 400
+            return gerar_erro_xml("Erro: Nenhum dado XML foi encontrado no formulário.")
 
-        logging.info(f"XML recebido:\n{xml_data}")
-        return "XML capturado com sucesso", 200
+        # Tenta fazer o parse do XML
+        try:
+            root = etree.fromstring(xml_data.encode("utf-8"))
+        except etree.XMLSyntaxError as e:
+            logging.error(f"Erro de sintaxe no XML: {str(e)}")
+            return gerar_erro_xml(f"Erro de sintaxe no XML: {str(e)}")
+        except Exception as e:
+            logging.error(f"Erro ao processar o XML: {str(e)}")
+            return gerar_erro_xml(f"Erro ao processar o XML: {str(e)}")
+
+        # Log do root do XML
+        logging.debug(f"Root do XML: {etree.tostring(root, pretty_print=True).decode('utf-8')}")
+
+        # Retorna uma resposta simples com o root do XML
+        return Response(etree.tostring(root, pretty_print=True), content_type="application/xml")
 
     except Exception as e:
-        logging.critical(f"Erro inesperado: {str(e)}", exc_info=True)
-        return f"Erro interno no servidor: {str(e)}", 500
+        logging.error(f"Erro interno no servidor: {str(e)}")
+        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+
+def gerar_erro_xml(mensagem):
+    """Gera um XML de erro com mensagem personalizada."""
+    response = etree.Element("Erro")
+    etree.SubElement(response, "Mensagem").text = mensagem
+    return Response(etree.tostring(response, pretty_print=True), content_type="application/xml")
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True)
