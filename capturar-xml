@@ -1,55 +1,70 @@
-from flask import Flask, request, Response
-import logging
-
-app = Flask(__name__)
-
-# Configuração do logger
-logging.basicConfig(level=logging.DEBUG)
-
-@app.route("/customer_web_service", methods=["POST"])
-def customer_web_service():
+def consulta_cep():
     try:
-        # Log do tipo de conteúdo recebido
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
-
-        # Tenta extrair o XML do request.form
+        
+        # Tenta extrair o XML de várias fontes possíveis
         xml_data = None
-        for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-            if possible_name in request.form:
-                xml_data = request.form.get(possible_name)
-                logging.debug(f"XML encontrado no campo {possible_name}")
-                break
-
-        # Se não encontrou por nome específico, tenta o primeiro campo do form
-        if not xml_data and len(request.form) > 0:
-            first_key = next(iter(request.form))
-            xml_data = request.form.get(first_key)
-            logging.debug(f"Usando primeiro campo do form: {first_key}")
-
-        # Verifica se o XML foi encontrado
+        
+        # Tenta do form primeiro (com vários nomes possíveis)
+        if request.form:
+            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+                if possible_name in request.form:
+                    xml_data = request.form.get(possible_name)
+                    logging.debug(f"XML encontrado no campo {possible_name}")
+                    break
+            
+            # Se não encontrou por nome específico, tenta o primeiro campo do form
+            if not xml_data and len(request.form) > 0:
+                first_key = next(iter(request.form))
+                xml_data = request.form.get(first_key)
+                logging.debug(f"Usando primeiro campo do form: {first_key}")
+        
+        # Se não encontrou no form, tenta do corpo da requisição
+        if not xml_data and request.data:
+            try:
+                xml_data = request.data.decode('utf-8')
+                logging.debug("Usando dados brutos do corpo da requisição")
+            except:
+                pass
+        
         if not xml_data:
-            logging.error("Erro: Nenhum dado XML foi encontrado no formulário.")
-            return Response(
-                "<Erro>Nenhum dado XML foi encontrado no formulário.</Erro>",
-                content_type="application/xml",
-                status=400
-            )
+            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+        
+        logging.debug(f"XML para processar: {xml_data}")
 
-        # Log do XML recebido
-        logging.debug(f"XML recebido: {xml_data}")
+        # Tenta fazer o parse do XML
+        try:
+            root = etree.fromstring(xml_data.encode("utf-8"))
+        except etree.XMLSyntaxError:
+            return gerar_erro_xml("Erro ao processar o XML recebido.")
 
-        # Retorna o XML recebido como resposta
-        return Response(xml_data, content_type="application/xml")
+        # Processa os campos do XML
+        campos = processar_campos(root)
 
-    except Exception as e:
-        # Log do erro completo, incluindo a stack trace
-        logging.error("Erro durante o processamento da requisição:", exc_info=True)
-        return Response(
-            f"<Erro>Erro interno no servidor: {str(e)}</Erro>",
-            content_type="application/xml",
-            status=500
-        )
+def processar_campos(root):
+    """Processa os campos do XML e retorna um dicionário com os valores."""
+    campos = {}
+    for field in root.findall(".//Field"):
+        id = field.findtext("ID") or field.findtext("Id")  # Tenta ambos os formatos
+        value = field.findtext("Value")
+        if id and value:
+            campos[id] = value
+
+    for table_field in root.findall(".//TableField"):
+        table_id = table_field.findtext("ID")
+        rows = []
+        for row in table_field.findall(".//Row"):
+            row_data = {}
+            for field in row.findall(".//Field"):
+                id = field.findtext("ID") or field.findtext("Id")
+                value = field.findtext("Value")
+                if id and value:
+                    row_data[id] = value
+            rows.append(row_data)
+        campos[table_id] = rows
+
+    return campos
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
