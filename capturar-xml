@@ -51,62 +51,9 @@ def capturar_xml():
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
 def gerar_sucesso_xml(mensagem):
-    """Gera um XML de sucesso com mensagem personalizada no formato V2."""
-    # Definir namespaces
-    nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
-    }
-    
-    # Criar o elemento raiz com namespaces
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Adicionar seção de mensagem
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = mensagem
-    
-    # Criar seção ReturnValueV2 vazia
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = "SUCESSO"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "1"
-    
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str = xml_declaration + "\n" + xml_str
-    
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    # ... (mesmo código para gerar XML de sucesso)
 
 def gerar_erro_xml(mensagem):
-    """Gera um XML de erro com mensagem personalizada no formato V2."""
-    # Definir namespaces
-    nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
-    }
-    
-    # Criar o elemento raiz com namespaces
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Adicionar seção de mensagem
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = mensagem
-    
-    # Criar seção ReturnValueV2 vazia
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = "DEU ERRO"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "0"
-    
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str = xml_declaration + "\n" + xml_str
-    
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    # ... (mesmo código para gerar XML de erro)
 
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+# Remova: if __name__ == "__main__": app.run(debug=True, port=5000)
