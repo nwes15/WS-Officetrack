@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Credenciais para o serviço SOAP
-SOAP_USERNAME = "WIE1pzUZpcEvRt1"
-SOAP_PASSWORD = "o4~2Q2o5oPj~Gr9o!0!tzWKXg!mN4x"
+SOAP_USERNAME = {USERNAME}
+SOAP_PASSWORD = {PASSWORD}
 SOAP_ENDPOINT = "http://seu-servidor-soap/service"  # Substitua pelo endpoint correto
 
 # Namespaces para o XML
