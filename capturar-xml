@@ -7,7 +7,7 @@ app = Flask(__name__)
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/consultar_cep", methods=["POST"])
+@app.route("/capturar_cep", methods=["POST"])
 def consulta_cep():
     try:
         # Verifica se o request contém dados no form
