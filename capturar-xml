@@ -9,19 +9,11 @@ logging.basicConfig(level=logging.DEBUG)
 @app.route("/capturar_xml", methods=["POST"])
 def capturar_xml():
     try:
-        # Obtém o XML da requisição
-        xml_data = request.data.decode("utf-8")
-        
-        if not xml_data:
-            return "Nenhum XML recebido", 400
-        
-        # Exibe o XML no console
-        logging.debug(f"XML recebido:\n{xml_data}")
-        
-        return "XML capturado com sucesso", 200
-    
+        xml_data = request.data.decode("utf-8")  # Captura o XML da requisição
+        logging.debug(f"XML recebido:\n{xml_data}")  # Exibe o XML no log
+        return "XML capturado", 200
     except Exception as e:
-        logging.error(f"Erro ao processar XML: {str(e)}")
+        logging.error(f"Erro ao capturar XML: {str(e)}")
         return "Erro ao processar XML", 500
 
 if __name__ == "__main__":
