@@ -3,48 +3,51 @@ import logging
 
 app = Flask(__name__)
 
-# Configuração do logger para exibir logs no console
-logging.basicConfig(level=logging.DEBUG)
+# Configuração do logger
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 @app.route("/capturar_xml", methods=["POST"])
 def capturar_xml():
     try:
+        # Logando os headers da requisição
+        logging.debug(f"Headers da requisição: {request.headers}")
+        
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
-        
+
+        if "xml" not in content_type:
+            logging.error("Erro: Tipo de conteúdo inválido. Esperado application/xml ou text/xml")
+            return "Erro: Tipo de conteúdo inválido. Esperado application/xml ou text/xml", 400
+
         xml_data = None
 
-        # Tenta capturar o XML de várias formas
+        # Tenta pegar XML do form-data
         if request.form:
             for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
                 if possible_name in request.form:
                     xml_data = request.form.get(possible_name)
                     logging.debug(f"XML encontrado no campo {possible_name}")
                     break
-            
-            if not xml_data and len(request.form) > 0:
-                first_key = next(iter(request.form))
-                xml_data = request.form.get(first_key)
-                logging.debug(f"Usando primeiro campo do form: {first_key}")
 
+        # Se não encontrou no form, tenta pegar do corpo da requisição
         if not xml_data and request.data:
             try:
                 xml_data = request.data.decode("utf-8")
-                logging.debug("Usando dados brutos do corpo da requisição")
-            except:
-                pass
-        
+                logging.debug("XML capturado do corpo da requisição")
+            except Exception as e:
+                logging.error(f"Erro ao decodificar XML: {str(e)}")
+                return f"Erro ao decodificar XML: {str(e)}", 500
+
         if not xml_data:
+            logging.error("Erro: Nenhum XML encontrado na requisição")
             return "Erro: Nenhum XML encontrado na requisição", 400
 
-        # Loga o XML completo
-        logging.debug(f"\n===== XML RECEBIDO =====\n{xml_data}\n========================")  
-
+        logging.info(f"XML recebido:\n{xml_data}")
         return "XML capturado com sucesso", 200
 
     except Exception as e:
-        logging.error(f"Erro ao capturar XML: {str(e)}")
-        return "Erro ao processar XML", 500
+        logging.critical(f"Erro inesperado: {str(e)}", exc_info=True)
+        return f"Erro interno no servidor: {str(e)}", 500
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
