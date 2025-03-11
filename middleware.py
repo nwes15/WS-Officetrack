@@ -437,7 +437,7 @@ def gerar_resposta_xml_v3():
     etree.SubElement(return_value, "ShortText").text = "Capturado com sucesso"
     etree.SubElement(return_value, "LongText").text = "Seu XML está disponivel nas logs"
     etree.SubElement(return_value, "Value").text = "OK"
-    etree.SubElement(return_value, "Action").text = "SendEntry"
+    etree.SubElement(return_value, "Action").text = "Entry"
     
     fields = etree.SubElement(return_value, "Fields")
 
