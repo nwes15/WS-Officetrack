@@ -3,44 +3,81 @@ import logging
 
 app = Flask(__name__)
 
-# Configuração do logger
-logging.basicConfig(level=logging.DEBUG)
+# Configuração do logger para garantir que tudo seja exibido
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 @app.route("/capturar_xml", methods=["POST"])
 def customer_web_service():
     try:
-        # Log do tipo de conteúdo recebido
-        content_type = request.headers.get("Content-Type", "").lower()
-        logging.debug(f"Tipo de conteúdo recebido: {content_type}")
-
-        # Tenta extrair o XML do request.form
+        # Log de informações do request
+        logging.info("=== NOVA REQUISIÇÃO RECEBIDA ===")
+        content_type = request.headers.get("Content-Type", "Não especificado")
+        logging.info(f"Content-Type: {content_type}")
+        
+        # Tenta extrair o XML de diversas formas possíveis
         xml_data = None
-        for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-            if possible_name in request.form:
-                xml_data = request.form.get(possible_name)
-                logging.debug(f"XML encontrado no campo {possible_name}")
-                break
-
-        # Se não encontrou por nome específico, tenta o primeiro campo do form
-        if not xml_data and len(request.form) > 0:
-            first_key = next(iter(request.form))
-            xml_data = request.form.get(first_key)
-            logging.debug(f"Usando primeiro campo do form: {first_key}")
-
-        # Verifica se o XML foi encontrado
+        
+        # 1. Verifica os dados do formulário
+        if request.form:
+            logging.info("Dados de formulário encontrados")
+            # Tentar campos específicos
+            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+                if possible_name in request.form:
+                    xml_data = request.form.get(possible_name)
+                    logging.info(f"XML encontrado no campo de formulário: {possible_name}")
+                    break
+            
+            # Se não encontrou, tenta o primeiro campo
+            if not xml_data and len(request.form) > 0:
+                logging.info(f"Campos disponíveis no form: {list(request.form.keys())}")
+                first_key = next(iter(request.form))
+                xml_data = request.form.get(first_key)
+                logging.info(f"Usando primeiro campo do form: {first_key}")
+        
+        # 2. Verifica se há dados brutos no corpo da requisição
+        if not xml_data and request.data:
+            logging.info("Dados brutos encontrados no corpo da requisição")
+            xml_data = request.data.decode('utf-8')
+        
+        # 3. Verifica se há dados em JSON
+        if not xml_data and request.is_json:
+            logging.info("Dados JSON encontrados")
+            json_data = request.get_json()
+            # Tenta encontrar um campo que contenha XML
+            for key, value in json_data.items():
+                if isinstance(value, str) and ('<' in value and '>' in value):
+                    xml_data = value
+                    logging.info(f"Possível XML encontrado no campo JSON: {key}")
+                    break
+        
+        # Verificar se o XML foi encontrado
         if not xml_data:
-            logging.error("Erro: Nenhum dado XML foi encontrado no formulário.")
-            return "Erro: Nenhum dado XML foi encontrado no formulário.", 400
-
-        # Log do XML recebido
-        logging.debug(f"XML recebido: {xml_data}")
-
-        # Retorna uma resposta simples
+            logging.error("ERRO: Nenhum dado XML encontrado na requisição")
+            return "Erro: Nenhum dado XML foi encontrado na requisição.", 400
+        
+        # Imprime o XML no log
+        print("\n===== XML RECEBIDO =====")
+        print(xml_data)
+        print("========================\n")
+        
+        # Registra o XML completo no log
+        logging.info("XML recebido com sucesso")
+        # Dividir o XML em várias linhas de log para evitar truncamento
+        for i, line in enumerate(xml_data.splitlines()):
+            logging.info(f"XML linha {i+1}: {line}")
+        
         return "XML recebido e logado com sucesso.", 200
-
+        
     except Exception as e:
+        import traceback
         logging.error(f"Erro interno no servidor: {str(e)}")
+        logging.error(traceback.format_exc())
         return f"Erro interno no servidor: {str(e)}", 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Mensagem de inicialização
+    print("Servidor iniciado. Enviando requisições POST para /capturar_xml")
+    app.run(debug=True, host='0.0.0.0', port=5000)
