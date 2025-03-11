@@ -429,7 +429,7 @@ def gerar_resposta_xml_v3():
     response = etree.Element("Response", nsmap=nsmap)
     
     message = etree.SubElement(response, "Message")
-    etree.SubElement(message, "Text").text = "Invalid data"
+    etree.SubElement(message, "Text").text = "XML disponível nas logs"
     etree.SubElement(message, "Icon").text = "Warning/Critical/Info"
     etree.SubElement(message, "ButtonText").text = "OK"
     
