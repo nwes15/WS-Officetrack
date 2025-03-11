@@ -13,10 +13,9 @@ def capturar_xml():
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
         
-        # Tenta extrair o XML de várias fontes possíveis
         xml_data = None
         
-        # Tenta do form primeiro (com vários nomes possíveis)
+        # Tenta extrair o XML do formulário
         if request.form:
             for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
                 if possible_name in request.form:
@@ -24,7 +23,6 @@ def capturar_xml():
                     logging.debug(f"XML encontrado no campo {possible_name}")
                     break
             
-            # Se não encontrou por nome específico, tenta o primeiro campo do form
             if not xml_data and len(request.form) > 0:
                 first_key = next(iter(request.form))
                 xml_data = request.form.get(first_key)
@@ -38,22 +36,35 @@ def capturar_xml():
             except:
                 pass
         
-        if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
-        
-        logging.debug(f"XML recebido: {xml_data}")
-
-        # Retorna mensagem de sucesso
-        return gerar_sucesso_xml("XML recebido e logado com sucesso.")
+        if xml_data:
+            logging.debug(f"XML recebido: {xml_data}")
+            
+            # Retorna a resposta XML fixa
+            return gerar_resposta_xml()
+        else:
+            return "Nenhum XML encontrado na requisição.", 400
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
-        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+        return f"Erro interno no servidor: {str(e)}", 500
 
-def gerar_sucesso_xml(mensagem):
-    # ... (mesmo código para gerar XML de sucesso)
+def gerar_resposta_xml():
+    """Gera a resposta XML fixa para o aplicativo."""
+    xml_response = """
+    <Response>
+        <Message>
+            <Text>Invalid data</Text>
+            <Icon>Warning/Critical/Info</Icon>
+            <ButtonText>OK</ButtonText>
+        </Message>
+        <ReturnValue>
+            <ShortText>XML CAPTURADO</ShortText>
+            <LongText>Seu XML está disponível nas logs</LongText>
+            <Value>OK</Value>
+            <Action>SendEntry</Action>
+        </ReturnValue>
+    </Response>
+    """
+    return Response(xml_response, content_type="application/xml")
 
-def gerar_erro_xml(mensagem):
-    # ... (mesmo código para gerar XML de erro)
-
-# Remova: if __name__ == "__main__": app.run(debug=True, port=5000)
+# Remova a linha app.run() para o Render
