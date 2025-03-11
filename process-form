@@ -1,0 +1,248 @@
+from flask import Flask, request, Response
+import xml.etree.ElementTree as ET
+import requests
+from datetime import datetime
+import uuid
+import logging
+
+# Configuração de logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+# Credenciais para o serviço SOAP
+SOAP_USERNAME = "WIE1pzUZpcEvRt1"
+SOAP_PASSWORD = "o4~2Q2o5oPj~Gr9o!0!tzWKXg!mN4x"
+SOAP_ENDPOINT = "http://seu-servidor-soap/service"  # Substitua pelo endpoint correto
+
+# Namespaces para o XML
+SOAP_NS = "http://schemas.xmlsoap.org/soap/envelope/"
+TRAC_NS = "Trackem.Web.Services"
+
+@app.route('/process-form', methods=['POST'])
+def process_form():
+    try:
+        # Recebe o XML do formulário
+        form_xml = request.data.decode('utf-8')
+        logger.info("XML do formulário recebido")
+        
+        # Parse do XML do formulário
+        form_root = ET.fromstring(form_xml)
+        
+        # Cria o SOAP envelope
+        soap_request = create_soap_request(form_root)
+        
+        # Envia o request SOAP
+        logger.info("Enviando SOAP request")
+        response = send_soap_request(soap_request)
+        
+        # Verifica a resposta
+        if response and response.status_code == 200:
+            logger.info("Tarefa criada com sucesso")
+            return Response("tarefa criada", status=200, mimetype='text/plain')
+        else:
+            logger.error(f"Erro ao criar tarefa: {response.text if response else 'Sem resposta'}")
+            return Response("erro ao criar tarefa", status=500, mimetype='text/plain')
+    
+    except Exception as e:
+        logger.error(f"Erro ao processar formulário: {str(e)}")
+        return Response(f"erro: {str(e)}", status=500, mimetype='text/plain')
+
+def create_soap_request(form_root):
+    """
+    Cria o request SOAP baseado no XML do formulário
+    """
+    # Extrai as informações do formulário
+    form_fields = {}
+    for field in form_root.findall('.//Field'):
+        field_id = field.find('Id').text
+        field_value = field.find('Value').text
+        form_fields[field_id] = field_value
+        
+        # Verifica se tem um campo Text (visto no ANO1, ANO2, ANO3)
+        text_elem = field.find('Text')
+        if text_elem is not None:
+            form_fields[f"{field_id}_TEXT"] = text_elem.text
+    
+    # Construir o AdditionalInfoXml com o formato esperado
+    additional_info_xml = create_additional_info_xml(form_fields)
+    
+    # Gerar a data atual no formato esperado (ddMMyyyyHHmmss)
+    current_date = datetime.now().strftime("%d%m%Y%H%M%S")
+    
+    # Construir o SOAP envelope
+    soap_envelope = f"""<soapenv:Envelope xmlns:soapenv="{SOAP_NS}" xmlns:trac="{TRAC_NS}">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <trac:CreateOrUpdateTask>
+         <trac:userName>{SOAP_USERNAME}</trac:userName>
+         <trac:password>{SOAP_PASSWORD}</trac:password>
+         <trac:operation>Create</trac:operation>
+         <trac:task>
+            <trac:TaskNumber>0</trac:TaskNumber>
+            <trac:WorkOrderNumber>{generate_work_order_number(form_fields)}</trac:WorkOrderNumber>
+            <trac:CustomerName>{form_fields.get('CLIENTE', '')}</trac:CustomerName>
+            <trac:StartDateTime>{form_fields.get('DTINICIO', current_date)}</trac:StartDateTime>
+            <trac:DueDateTime>{form_fields.get('DTFINAL', current_date)}</trac:DueDateTime>
+            <trac:Duration>0</trac:Duration>
+            <trac:TaskTypeCode>DCEA1</trac:TaskTypeCode>
+            <trac:Description>DAYCO PROTOTIPO - {form_fields.get('CLIENTE', '')} - PARA APROVAR</trac:Description>
+            <trac:Status>2048</trac:Status>
+            <trac:Data1>S</trac:Data1>
+            <trac:ExternalCreationDate>{current_date}</trac:ExternalCreationDate>
+            <trac:AdditionalInfoXml>{additional_info_xml}</trac:AdditionalInfoXml>
+            <trac:TimeZone>America/Sao_Paulo</trac:TimeZone>
+            <trac:TimeWindowPriority>1</trac:TimeWindowPriority>
+            <trac:ServiceTime>0</trac:ServiceTime>
+            <trac:OrderInRoute>2</trac:OrderInRoute>
+            <trac:Priority>5</trac:Priority>
+            <trac:TaskWithoutDates>False</trac:TaskWithoutDates>
+            <trac:Data1HasValue>true</trac:Data1HasValue>
+            <trac:ExternalCreationDateHasValue>true</trac:ExternalCreationDateHasValue>
+            <trac:AdditionalInfoXmlHasValue>true</trac:AdditionalInfoXmlHasValue>
+            <trac:TimeZoneHasValue>true</trac:TimeZoneHasValue>
+            <trac:TimeWindowPriorityHasValue>true</trac:TimeWindowPriorityHasValue>
+            <trac:ServiceTimeHasValue>true</trac:ServiceTimeHasValue>
+            <trac:OrderInRouteHasValue>true</trac:OrderInRouteHasValue>
+            <trac:PriorityHasValue>true</trac:PriorityHasValue>
+            <trac:TaskWithoutDatesHasValue>true</trac:TaskWithoutDatesHasValue>
+         </trac:task>
+      </trac:CreateOrUpdateTask>
+   </soapenv:Body>
+</soapenv:Envelope>"""
+    
+    return soap_envelope
+
+def create_additional_info_xml(form_fields):
+    """
+    Cria o XML de informações adicionais baseado nos campos do formulário
+    """
+    # Constrói o XML de informações adicionais
+    additional_info = """<?xml version="1.0" encoding="utf-16"?>
+<ArrayOfObjectAdditionalInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <ObjectAdditionalInfo>
+    <Name>Campanha Prototipo</Name>
+    <Items>"""
+    
+    # Mapear os campos do formulário para os pares de texto-valor
+    mappings = [
+        ("CLIENTE", "Nome do Cliente", form_fields.get("CLIENTE", "")),
+        ("PRODUTO", "Nome do Produto", form_fields.get("PRODUTO", "")),
+        ("TIPOACAO", "Tipo da Acao Campanha", form_fields.get("TIPOACAO", "")),
+        ("DESCRITIVO", "Descritivo do Premio", form_fields.get("DESCRITIVO", "")),
+        ("DTINICIO", "Data do Inicio da Campanha", format_date(form_fields.get("DTINICIO", ""))),
+        ("DTFINAL", "Data do Fim da Campanha", format_date(form_fields.get("DTFINAL", ""))),
+        ("MES1", "MES/ANO 1", f"{get_month_name(form_fields.get('MES1', ''))}/{form_fields.get('ANO1_TEXT', '2024')}"),
+        ("MES2", "MES/ANO 2", f"{get_month_name(form_fields.get('MES2', ''))}/{form_fields.get('ANO2_TEXT', '2024')}"),
+        ("MES3", "MES/ANO 3", f"{get_month_name(form_fields.get('MES3', ''))}/{form_fields.get('ANO3_TEXT', '2024')}"),
+        ("VALORMES1", "VALOR MES 1", format_currency(form_fields.get("VALORMES1", "0"))),
+        ("VALORMES2", "VALOR MES 2", format_currency(form_fields.get("VALORMES2", "0"))),
+        ("VALORMES3", "VALOR MES 3", format_currency(form_fields.get("VALORMES3", "0"))),
+        ("MES1", "MES 1", get_month_name(form_fields.get("MES1", ""))),
+        ("CRESC", "Crescimento %", form_fields.get("CRESC", "")),
+        ("SUPERVISOR", "Supervisor", "Joao da Silva"),  # Valor padrão
+        ("MEDIA", "Media", extract_value(form_fields.get("MEDIA", "0"))),
+        ("MEDCRESC", "Media Crescimento", extract_value(form_fields.get("MEDCRESC", "0"))),
+        ("DIASUTEIS", "Dia Uteis", form_fields.get("DIASUTEIS", "")),
+        ("DIASCAMPANHA", "Dias Campanha", form_fields.get("DIASCAMPANHA", "")),
+        ("MEDDU", "Media Dias Uteis", extract_value(form_fields.get("MEDDU", "0"))),
+        ("METACALC", "Meta Calculada", extract_value(form_fields.get("METACALC", "0"))),
+        ("INVESTCALCULADO", "Investimento Calculado", form_fields.get("INVESTCALCULADO", "")),
+        ("INVESTPERC", "Investimento Percentual", extract_value(form_fields.get("INVESTPERC", "0")))
+    ]
+    
+    # Adiciona todos os pares de texto-valor
+    for field_id, text, value in mappings:
+        additional_info += f"""
+      <TextValuePair>
+        <Id>{field_id}</Id>
+        <Text>{text}</Text>
+        <Value>{value}</Value>
+      </TextValuePair>"""
+    
+    # Fecha o XML
+    additional_info += """
+    </Items>
+  </ObjectAdditionalInfo>
+</ArrayOfObjectAdditionalInfo>"""
+    
+    return additional_info
+
+def generate_work_order_number(form_fields):
+    """
+    Gera um número de ordem de trabalho baseado nas informações do formulário
+    """
+    return "25"  # Ou alguma lógica para gerar um número único
+
+def format_date(date_str):
+    """
+    Formata a data do formato ddMMyyyyHHmm para dd/MM/yyyy
+    """
+    if len(date_str) >= 12:
+        return f"{date_str[0:2]}/{date_str[2:4]}/{date_str[4:8]}"
+    return date_str
+
+def get_month_name(month_abbr):
+    """
+    Converte a abreviação do mês para o nome completo
+    """
+    month_mapping = {
+        "JAN": "JANEIRO",
+        "FEV": "FEVEREIRO",
+        "MAR": "MARCO",
+        "ABR": "ABRIL",
+        "MAI": "MAIO",
+        "JUN": "JUNHO",
+        "JUL": "JULHO",
+        "AGO": "AGOSTO",
+        "SET": "SETEMBRO",
+        "OUT": "OUTUBRO",
+        "NOV": "NOVEMBRO",
+        "DEZ": "DEZEMBRO"
+    }
+    return month_mapping.get(month_abbr.upper(), month_abbr)
+
+def format_currency(value):
+    """
+    Formata um valor numérico para o formato de moeda com vírgula
+    """
+    try:
+        # Converte para float e formata com 2 casas decimais usando vírgula
+        return f"{float(value):.2f}".replace(".", ",")
+    except ValueError:
+        return value
+
+def extract_value(text):
+    """
+    Extrai um valor numérico de um texto (ex: "media: 42955,3333333333" -> "42955,33")
+    """
+    try:
+        # Tenta encontrar um número no texto
+        import re
+        match = re.search(r'[\d,]+', text)
+        if match:
+            value = match.group(0)
+            # Se for um número com vírgula, formata para 2 casas decimais
+            if ',' in value:
+                parts = value.split(',')
+                return f"{parts[0]},{parts[1][:2]}"
+            return value
+        return text
+    except:
+        return text
+
+def send_soap_request(soap_envelope):
+    """
+    Envia o request SOAP para o servidor
+    """
+    try:
+        headers = {'Content-Type': 'text/xml;charset=UTF-8'}
+        response = requests.post(SOAP_ENDPOINT, data=soap_envelope, headers=headers)
+        return response
+    except Exception as e:
+        logger.error(f"Erro ao enviar request SOAP: {str(e)}")
+        return None
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000, debug=True)
