@@ -7,12 +7,12 @@ app = Flask(__name__)
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/capturar_xml", methods=["POST"])
-def capturar_xml():
+@app.route("/customer_web_service", methods=["POST"])
+def customer_web_service():
     try:
-        # Verifica se o request contém dados no form
-        if not request.form:
-            return gerar_erro_xml("Erro: Nenhum dado foi enviado no formulário.")
+        # Log do tipo de conteúdo recebido
+        content_type = request.headers.get("Content-Type", "").lower()
+        logging.debug(f"Tipo de conteúdo recebido: {content_type}")
 
         # Tenta extrair o XML do request.form
         xml_data = None
@@ -30,32 +30,112 @@ def capturar_xml():
 
         # Verifica se o XML foi encontrado
         if not xml_data:
-            return gerar_erro_xml("Erro: Nenhum dado XML foi encontrado no formulário.")
+            return gerar_resposta_erro("Erro: Nenhum dado XML foi encontrado no formulário.")
+
+        # Log do XML para processar
+        logging.debug(f"XML para processar: {xml_data}")
 
         # Tenta fazer o parse do XML
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
         except etree.XMLSyntaxError as e:
             logging.error(f"Erro de sintaxe no XML: {str(e)}")
-            return gerar_erro_xml(f"Erro de sintaxe no XML: {str(e)}")
+            return gerar_resposta_erro(f"Erro de sintaxe no XML: {str(e)}")
         except Exception as e:
             logging.error(f"Erro ao processar o XML: {str(e)}")
-            return gerar_erro_xml(f"Erro ao processar o XML: {str(e)}")
+            return gerar_resposta_erro(f"Erro ao processar o XML: {str(e)}")
 
-        # Log do root do XML
-        logging.debug(f"Root do XML: {etree.tostring(root, pretty_print=True).decode('utf-8')}")
-
-        # Retorna uma resposta simples com o root do XML
-        return Response(etree.tostring(root, pretty_print=True), content_type="application/xml")
+        # Processa a requisição e gera a resposta
+        return processar_requisicao(root)
 
     except Exception as e:
         logging.error(f"Erro interno no servidor: {str(e)}")
-        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+        return gerar_resposta_erro(f"Erro interno no servidor: {str(e)}")
 
-def gerar_erro_xml(mensagem):
-    """Gera um XML de erro com mensagem personalizada."""
-    response = etree.Element("Erro")
-    etree.SubElement(response, "Mensagem").text = mensagem
+def processar_requisicao(root):
+    """
+    Processa a requisição e decide se deve validar dados ou retornar uma lista de seleção.
+    """
+    # Exemplo de lógica de decisão:
+    # Verifica se há um campo específico para determinar o modo de operação
+    modo = "validacao"  # Ou "selecao", dependendo da lógica do cliente
+
+    if modo == "validacao":
+        # Valida os dados e retorna uma resposta de validação
+        return gerar_resposta_validacao(
+            texto_mensagem="Dados inválidos",
+            icone_mensagem="Warning",
+            texto_botao="OK",
+            texto_curto="Updated",
+            texto_longo="Customer data updated",
+            valor="OK",
+            acao="SendEntry"
+        )
+    else:
+        # Retorna uma lista de seleção
+        itens = [
+            {"texto": "One", "valor": "1"},
+            {"texto": "Two", "valor": "2"},
+            {"texto": "Three", "valor": "3"}
+        ]
+        return gerar_resposta_selecao(
+            texto_mensagem="Selecione um valor",
+            icone_mensagem="Info",
+            itens=itens
+        )
+
+def gerar_resposta_validacao(texto_mensagem, icone_mensagem, texto_botao, texto_curto, texto_longo, valor, acao):
+    """
+    Gera uma resposta de validação no formato especificado.
+    """
+    response = etree.Element("Response")
+    message = etree.SubElement(response, "Message")
+    etree.SubElement(message, "Text").text = texto_mensagem
+    etree.SubElement(message, "Icon").text = icone_mensagem
+    etree.SubElement(message, "ButtonText").text = texto_botao
+
+    return_value = etree.SubElement(response, "ReturnValue")
+    etree.SubElement(return_value, "ShortText").text = texto_curto
+    etree.SubElement(return_value, "LongText").text = texto_longo
+    etree.SubElement(return_value, "Value").text = valor
+    etree.SubElement(return_value, "Action").text = acao
+
+    return Response(etree.tostring(response, pretty_print=True), content_type="application/xml")
+
+def gerar_resposta_selecao(texto_mensagem, icone_mensagem, itens):
+    """
+    Gera uma resposta de seleção no formato especificado.
+    """
+    response = etree.Element("Response")
+    message = etree.SubElement(response, "Message")
+    etree.SubElement(message, "Text").text = texto_mensagem
+    etree.SubElement(message, "Icon").text = icone_mensagem
+
+    return_value = etree.SubElement(response, "ReturnValue")
+    items = etree.SubElement(return_value, "Items")
+    for item in itens:
+        item_element = etree.SubElement(items, "Item")
+        etree.SubElement(item_element, "Text").text = item["texto"]
+        etree.SubElement(item_element, "Value").text = item["valor"]
+
+    return Response(etree.tostring(response, pretty_print=True), content_type="application/xml")
+
+def gerar_resposta_erro(mensagem):
+    """
+    Gera uma resposta de erro no formato especificado.
+    """
+    response = etree.Element("Response")
+    message = etree.SubElement(response, "Message")
+    etree.SubElement(message, "Text").text = mensagem
+    etree.SubElement(message, "Icon").text = "Critical"
+    etree.SubElement(message, "ButtonText").text = "OK"
+
+    return_value = etree.SubElement(response, "ReturnValue")
+    etree.SubElement(return_value, "ShortText").text = "Erro"
+    etree.SubElement(return_value, "LongText").text = mensagem
+    etree.SubElement(return_value, "Value").text = "Not OK"
+    etree.SubElement(return_value, "Action").text = "None"
+
     return Response(etree.tostring(response, pretty_print=True), content_type="application/xml")
 
 if __name__ == "__main__":
