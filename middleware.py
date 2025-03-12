@@ -451,7 +451,7 @@ def gerar_resposta_xml_v3():
 
 
 @app.route("/consultar_peso", methods=["POST"])
-def consultar_peso():
+def consultar_peso_v5():
     try:
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
@@ -482,7 +482,7 @@ def consultar_peso():
                 pass
 
         if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+            return gerar_erro_xml_v5("Não foi possível encontrar dados XML na requisição")
 
         logging.debug(f"XML para processar: {xml_data}")
 
@@ -491,7 +491,7 @@ def consultar_peso():
             root = etree.fromstring(xml_data.encode("utf-8"))
         except etree.XMLSyntaxError as e:
             logging.error(f"XML parsing error: {e}")
-            return gerar_erro_xml(f"Erro ao processar o XML recebido: {e}")
+            return gerar_erro_xml_v5(f"Erro ao processar o XML recebido: {e}")
 
         # Find TSTPESO value using XPath (most robust)
         tstpeso_element = root.find(".//Field[Id='TSTPESO']/Value")
@@ -499,22 +499,22 @@ def consultar_peso():
         logging.debug(f"TSTPESO value: {tst_peso}")
 
         # Generate weights
-        peso1, peso2 = gerar_pesos(tst_peso == "1")  # Pass boolean for clarity
+        peso1, peso2 = gerar_pesos_v5(tst_peso == "1")  # Pass boolean for clarity
         logging.debug(f"Generated weights: PESO={peso1}, PESOBALANCA={peso2}")
 
         # *UPDATE THE INPUT XML, NOT CREATING A NEW ONE*
-        update_xml_weights(root, peso1, peso2)
+        update_xml_weights_v5(root, peso1, peso2)
 
         # Serialize the modified XML back to a string
         try:
             xml_str = etree.tostring(root, encoding="utf-16", xml_declaration=True).decode("utf-16")
         except Exception as e:
             logging.error(f"Error serializing XML: {e}")
-            return gerar_erro_xml(f"Error serializing XML: {e}")
+            return gerar_erro_xml_v5(f"Error serializing XML: {e}")
 
         if xml_str is None:
             logging.error("XML string is None!")
-            return gerar_erro_xml("XML string is None after serialization!")
+            return gerar_erro_xml_v5("XML string is None after serialization!")
 
         logging.debug(f"XML de Resposta: {xml_str}")
 
@@ -522,10 +522,10 @@ def consultar_peso():
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
-        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+        return gerar_erro_xml_v5(f"Erro interno no servidor: {str(e)}")
 
 
-def gerar_pesos(different):
+def gerar_pesos_v5(different):
     """Generates random weights. If 'different' is True, guarantees PESO and PESOBALANCA are different."""
     peso1 = round(random.uniform(0.5, 500), 2)
     if different:
@@ -537,8 +537,8 @@ def gerar_pesos(different):
     return peso1, peso2
 
 
-def update_xml_weights(root, peso1, peso2):
-    """Updates the Value elements for PESO and PESOBALANCA in the XML."""
+def update_xml_weights_v5(root, peso1, peso2):
+    """Updates the Value elements for PESO and PESOBALANCA in the XML and adds ShortText."""
     # Find the Field elements for PESO and PESOBALANCA
     try:
         peso_field = root.find(".//Field[Id='PESO']")
@@ -569,8 +569,18 @@ def update_xml_weights(root, peso1, peso2):
         logging.error(f"Error in update_xml_weights: {e}")
         raise  # Re-raise the exception to be caught in consultar_peso
 
+    # Add ShortText (if it doesn't exist)
+    short_text_element = root.find("ShortText")
+    if short_text_element is None:
+        etree.SubElement(root, "ShortText").text = "SHORT TEXT"
 
-def gerar_erro_xml(mensagem):
+    #Add LongText (if it doesn't exist)
+    long_text_element = root.find("LongText")
+    if long_text_element is None:
+        etree.SubElement(root, "LongText")#Leave it empty
+
+
+def gerar_erro_xml_v5(mensagem):
     """Gera um XML de erro with custom message (but not V2 format)."""
     # Basic error XML (not in V2 format)
     error_xml = f'<Error><Message>{mensagem}</Message></Error>'
