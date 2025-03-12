@@ -386,117 +386,68 @@ def consultar_peso():
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
 
-        # Tenta extrair o XML de várias fontes possíveis
-        xml_data = None
-
-        # Tenta do form primeiro (com vários nomes possíveis)
-        if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-                if possible_name in request.form:
-                    xml_data = request.form.get(possible_name)
-                    logging.debug(f"XML encontrado no campo {possible_name}")
-                    break
-
-            # Se não encontrou por nome específico, tenta do corpo da requisição
-            if not xml_data and len(request.form) > 0:
-                first_key = next(iter(request.form))
-                xml_data = request.form.get(first_key)
-                logging.debug(f"Usando primeiro campo do form: {first_key}")
-
-        # Se não encontrou no form, tenta do corpo da requisição
-        if not xml_data and request.data:
-            try:
-                xml_data = request.data.decode('utf-8')
-                logging.debug("Usando dados brutos do corpo da requisição")
-            except:
-                pass
-
+        xml_data = request.data.decode("utf-8") if request.data else None
         if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+            return gerar_erro_xml("Nenhum XML foi encontrado na requisição.")
 
-        logging.debug(f"XML para processar: {xml_data}")
+        logging.debug(f"XML recebido: {xml_data}")
 
-        # Tenta fazer o parse do XML
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
         except etree.XMLSyntaxError as e:
-            logging.error(f"XML parsing error: {e}")
+            logging.error(f"Erro ao processar XML: {e}")
             return gerar_erro_xml(f"Erro ao processar o XML recebido: {e}")
 
-        # Find TSTPESO value using XPath (most robust)
+        # Verificar a tag TSTPESO
         tstpeso_element = root.find(".//Field[Id='TSTPESO']/Value")
-        tst_peso = tstpeso_element.text if tstpeso_element is not None else "0"
-        logging.debug(f"TSTPESO value: {tst_peso}")
+        tst_peso = tstpeso_element.text.strip() if tstpeso_element is not None else "0"
 
-        # Generate weights
-        peso1, peso2 = gerar_pesos(tst_peso == "1")  # Pass boolean for clarity
-        logging.debug(f"Generated weights: PESO={peso1}, PESOBALANCA={peso2}")
+        logging.debug(f"TSTPESO encontrado: {tst_peso}")
 
-        # Build the ResponseV2 XML
-        response_xml = build_response_xml(peso1, peso2)
+        # Call the Groq API to generate the response
+        groq_response = call_groq_api(tst_peso)
 
-        logging.debug(f"Response XML: {response_xml}")
-
-        if not response_xml:
-            logging.error("Response XML is empty!")
-            return gerar_erro_xml("Erro ao gerar XML de resposta (XML vazio).")
-
-        return Response(response_xml.encode("utf-16"), content_type="application/xml; charset=utf-16")
+        if groq_response.startswith("<"):
+          return Response(groq_response.encode("utf-16"), content_type="application/xml; charset=utf-16")
+        else:
+          return gerar_erro_xml(groq_response)
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
+def call_groq_api(tst_peso):
+    """Calls the Groq API to generate the PESO and PESOBALANCA values."""
+    try:
+        prompt = f"Generate XML in ResponseV2 format with PESO and PESOBALANCA values. If TSTPESO is 1, generate two different random numbers between 0.5 and 500. If TSTPESO is 0, generate two equal random numbers between 0.5 and 500. TSTPESO={tst_peso}"
 
-def gerar_pesos(different):
-    """Generates random weights. If 'different' is True, guarantees PESO and PESOBALANCA are different."""
-    peso1 = round(random.uniform(0.5, 500), 2)
-    if different:
-        peso2 = peso1
-        while abs(peso1 - peso2) < 0.1:  # Ensure they are different by at least 0.1
-            peso2 = round(random.uniform(0.5, 500), 2)
-    else:
-        peso2 = peso1
-    return peso1, peso2
+        payload = {
+            "model": "mixtral-8x7b-32768",  # Or the desired Groq model
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7 # Adjust as needed
+        }
 
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
 
-def build_response_xml(peso1, peso2):
-    """Builds the ResponseV2 XML string."""
-    nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
-    }
+        response = requests.post(GROQ_API_URL, headers=headers, json=payload)
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
 
-        try:
-        response = etree.Element("ResponseV2", nsmap=nsmap)
+        json_response = response.json()
+        xml_output = json_response["choices"][0]["message"]["content"].strip()
+        return xml_output
 
-        message = etree.SubElement(response, "MessageV2")
-        etree.SubElement(message, "Text").text = "Pesos gerados com sucesso"
-
-        return_value = etree.SubElement(response, "ReturnValueV2")
-        fields = etree.SubElement(return_value, "Fields")
-
-        add_field(fields, "PESO", str(peso1))
-        add_field(fields, "PESOBALANCA", str(peso2))
-
-        etree.SubElement(return_value, "ShortText").text = "peso gerado com sucesso"
-        etree.SubElement(return_value, "LongText")
-        etree.SubElement(return_value, "Value").text = "58"
-
-        xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=True).decode("utf-16")
-        return xml_str
-
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Erro ao chamar API Groq: {e}")
+        return f"Erro ao chamar API Groq: {e}"  # Return text error for now
+    except KeyError as e:
+        logging.error(f"Erro ao processar resposta da API Groq (KeyError): {e}")
+        return f"Erro ao processar resposta da API Groq: {e}"
     except Exception as e:
-        logging.error(f"Error building XML: {e}")
-        return ""  # Return an empty string in case of error
-
-
-def add_field(parent, field_id, value):
-    """Adds a Field element to the parent."""
-    field = etree.SubElement(parent, "Field")
-    etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = value
-
+        logging.error(f"Erro inesperado ao chamar API Groq: {e}")
+        return f"Erro inesperado ao chamar API Groq: {e}"
 
 def gerar_erro_xml(mensagem):
     """Gera um TEXT error message for now."""
