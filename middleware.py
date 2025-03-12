@@ -419,6 +419,7 @@ def processar_peso():
         except etree.XMLSyntaxError:
             return gerar_erro_xml("XML inválido.")
 
+        # Localizar o campo TSTPESO
         tstpeso = None
         for field in root.findall(".//Field"):
             field_id = field.findtext("Id")
@@ -426,11 +427,12 @@ def processar_peso():
                 tstpeso = field.findtext("Value")
                 break
 
-if tstpeso is None:
-    return gerar_erro_xml("Campo TSTPESO não encontrado no XML.")
+        # Verificar se o campo TSTPESO foi encontrado e é válido
+        if tstpeso is None:
+            return gerar_erro_xml("Campo TSTPESO não encontrado no XML.")
 
-if tstpeso not in ["0", "1"]:
-    return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
+        if tstpeso not in ["0", "1"]:
+            return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
 
         # Definir o prompt para o Groq com base no valor de TSTPESO
         if tstpeso == "1":
