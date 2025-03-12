@@ -482,7 +482,7 @@ def consultar_peso():
                 pass
         
         if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+            return gerar_erro_xml_v5("Não foi possível encontrar dados XML na requisição")
         
         logging.debug(f"XML para processar: {xml_data}")
 
@@ -490,10 +490,10 @@ def consultar_peso():
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
         except etree.XMLSyntaxError:
-            return gerar_erro_xml("Erro ao processar o XML recebido.")
+            return gerar_erro_xml_v5("Erro ao processar o XML recebido.")
 
         # Processa os campos do XML
-        campos = processar_campos(root)
+        campos = processar_campos_v5(root)
         
         # Verifica o valor de TSTPESO
         tst_peso = campos.get("TSTPESO")
@@ -535,13 +535,13 @@ def consultar_peso():
         }
         
         # Retorna a resposta XML
-        return gerar_resposta_xml_v2(response_data)
+        return gerar_resposta_xml_v5(response_data)
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
-def processar_campos(root):
+def processar_campos_v5(root):
     """Processa os campos do XML e retorna um dicionário com os valores."""
     campos = {}
     
@@ -563,7 +563,7 @@ def processar_campos(root):
     logging.debug(f"Campos processados: {campos}")
     return campos
 
-def gerar_resposta_xml_v2(data):
+def gerar_resposta_xml_v5(data):
     """Gera a resposta XML V2 com os dados de peso."""
     # Definir namespaces
     nsmap = {
@@ -583,8 +583,8 @@ def gerar_resposta_xml_v2(data):
     fields = etree.SubElement(return_value, "Fields")
     
     # Adicionar campos de peso
-    adicionar_campo_v2(fields, "PESO", data.get("PESO", "0"))
-    adicionar_campo_v2(fields, "PESOBALANCA", data.get("PESOBALANCA", "0"))
+    adicionar_campo_v5(fields, "PESO", data.get("PESO", "0"))
+    adicionar_campo_v5(fields, "PESOBALANCA", data.get("PESOBALANCA", "0"))
     
     # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "VALIDAÇÃO CONCLUÍDA"
@@ -600,13 +600,13 @@ def gerar_resposta_xml_v2(data):
     
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
-def adicionar_campo_v2(parent, field_id, value):
+def adicionar_campo_v5(parent, field_id, value):
     """Adiciona um campo ao XML no formato V2."""
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
 
-def gerar_erro_xml(mensagem):
+def gerar_erro_xml_v5(mensagem):
     """Gera um XML de erro com mensagem personalizada no formato V2."""
     # Definir namespaces
     nsmap = {
@@ -634,7 +634,6 @@ def gerar_erro_xml(mensagem):
     xml_str = xml_declaration + "\n" + xml_str
     
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
 
     
 if __name__ == '__main__':
