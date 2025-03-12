@@ -428,7 +428,7 @@ def processar_peso():
 
         # Verificar se o campo TSTPESO é 0 ou 1
         for field in root.findall(".//Field"):
-            field_id = field.findtext("Id")
+            field_id = field.findtext("ID")
             if field_id == "TSTPESO":
                 tstpeso = field.findtext("Value")
                 break
