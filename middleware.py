@@ -378,121 +378,100 @@ def gerar_erro_xml_groq(mensagem):
 
     return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
 
+# consultar peso começa aqui
 
-@app.route("/consultar_peso", methods=["POST"])
-def consultar_peso():
-    try:
-        content_type = request.headers.get("Content-Type", "").lower()
-        logging.debug(f"Tipo de conteúdo recebido: {content_type}")
-
-        # Tenta extrair o XML de várias fontes possíveis
-        xml_data = None
-
-        # Tenta do form primeiro (com vários nomes possíveis)
-        if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-                if possible_name in request.form:
-                    xml_data = request.form.get(possible_name)
-                    logging.debug(f"XML encontrado no campo {possible_name}")
-                    break
-
-            # Se não encontrou por nome específico, tenta o primeiro campo do form
-            if not xml_data and len(request.form) > 0:
-                first_key = next(iter(request.form))
-                xml_data = request.form.get(first_key)
-                logging.debug(f"Usando primeiro campo do form: {first_key}")
-
-        # Se não encontrou no form, tenta do corpo da requisição
-        if not xml_data and request.data:
-            try:
-                xml_data = request.data.decode('utf-8')
-                logging.debug("Usando dados brutos do corpo da requisição")
-            except:
-                pass
-
-        if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
-
-        logging.debug(f"XML para processar: {xml_data}")
-
-        # Tenta fazer o parse do XML
-        try:
-            root = etree.fromstring(xml_data.encode("utf-8"))
-        except etree.XMLSyntaxError as e:
-            logging.error(f"XML parsing error: {e}")
-            return gerar_erro_xml(f"Erro ao processar o XML recebido: {e}")
-
-        # Find TSTPESO value using XPath (most robust)
-        tstpeso_element = root.find(".//Field[Id='TSTPESO']/Value")
-        tst_peso = tstpeso_element.text if tstpeso_element is not None else "0"
-        logging.debug(f"TSTPESO value: {tst_peso}")
-
-        # Generate weights
-        peso1, peso2 = gerar_pesos(tst_peso == "1")  # Pass boolean for clarity
-        logging.debug(f"Generated weights: PESO={peso1}, PESOBALANCA={peso2}")
-
-        # Build the ResponseV2 XML
-        response_xml = build_response_xml(peso1, peso2)
-
-        logging.debug(f"Response XML: {response_xml}")
-
-        return Response(response_xml.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
-    except Exception as e:
-        logging.error(f"Erro interno: {str(e)}")
-        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
-
-
-def gerar_pesos(different):
-    """Generates random weights. If 'different' is True, guarantees PESO and PESOBALANCA are different."""
-    peso1 = round(random.uniform(0.5, 500), 2)
-    if different:
-        peso2 = peso1
-        while abs(peso1 - peso2) < 0.1:  # Ensure they are different by at least 0.1
-            peso2 = round(random.uniform(0.5, 500), 2)
-    else:
-        peso2 = peso1
-    return peso1, peso2
-
-
-def build_response_xml(peso1, peso2):
-    """Builds the ResponseV2 XML string."""
+def criar_resposta_xml(peso1, peso2):
+    """Cria o XML de resposta no formato ResponseV2 esperado."""
+    
     nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "xsd": "http://www.w3.org/2001/XMLSchema"
     }
 
     response = etree.Element("ResponseV2", nsmap=nsmap)
 
     message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Pesos gerados com sucesso"
+    etree.SubElement(message, "Text").text = "Consulta de peso realizada com sucesso."
 
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
 
-    add_field(fields, "PESO", str(peso1))
-    add_field(fields, "PESOBALANCA", str(peso2))
+    # Criando os campos PESO e PESOBALANCA
+    adicionar_campo_v2(fields, "PESO", str(peso1))
+    adicionar_campo_v2(fields, "PESOBALANCA", str(peso2))
 
-    etree.SubElement(return_value, "ShortText").text = "peso gerado com sucesso"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "58"
+    # Adicionar elementos extras conforme estrutura do CEP
+    etree.SubElement(return_value, "ShortText").text = "Consulta realizada"
+    etree.SubElement(return_value, "LongText")  # Vazio
+    etree.SubElement(return_value, "Value").text = "1"
 
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=True).decode("utf-16")
-    return xml_str
+    # Criando o XML com a declaração UTF-16 correta
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
 
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
-def add_field(parent, field_id, value):
-    """Adds a Field element to the parent."""
+def adicionar_campo_v2(parent, id, valor):
+    """Adiciona um campo no formato esperado em Fields."""
     field = etree.SubElement(parent, "Field")
-    etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = value
+    etree.SubElement(field, "ID").text = id
+    etree.SubElement(field, "Value").text = valor
 
+@app.route('/consultar_peso', methods=['POST'])
+def consultar_peso():
+    """Rota que processa a requisição e gera o XML de resposta com base no valor de <TSTPESO>."""
+    try:
+        xml_data = request.data.decode('utf-8')
+        logging.debug(f"XML Recebido: {xml_data}")
+
+        # Parse do XML recebido
+        root = etree.fromstring(xml_data.encode('utf-8'))
+
+        # Buscar o valor de <TSTPESO>
+        tstpeso_element = root.find(".//TSTPESO")
+        if tstpeso_element is None:
+            return gerar_erro_xml("Tag <TSTPESO> não encontrada.")
+
+        tstpeso = int(tstpeso_element.text.strip())
+
+        # Gerar números aleatórios para os campos de peso
+        peso1 = round(random.uniform(0.5, 500), 2)
+
+        if tstpeso == 1:
+            peso2 = round(random.uniform(0.5, 500), 2)  # Diferente
+        else:
+            peso2 = peso1  # Igual
+
+        return criar_resposta_xml(peso1, peso2)
+
+    except Exception as e:
+        logging.error(f"Erro interno: {str(e)}", exc_info=True)
+        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
 def gerar_erro_xml(mensagem):
-    """Gera um XML de erro with custom message (but not V2 format)."""
-    # Basic error XML (not in V2 format)
-    error_xml = f'<Error><Message>{mensagem}</Message></Error>'
-    return Response(error_xml, content_type='application/xml; charset=utf-8', status=500)
+    """Gera uma resposta XML de erro no formato ResponseV2."""
+    nsmap = {
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "xsd": "http://www.w3.org/2001/XMLSchema"
+    }
+
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = mensagem
+
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    etree.SubElement(return_value, "ShortText").text = "Erro"
+    etree.SubElement(return_value, "LongText")  # Vazio
+    etree.SubElement(return_value, "Value").text = "0"
+
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+
     
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
