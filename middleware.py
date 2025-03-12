@@ -382,13 +382,6 @@ def gerar_erro_xml_groq(mensagem):
 # consultar peso começa aqui
 
 
-
-app = Flask(__name__)
-
-logging.basicConfig(level=logging.DEBUG)
-
-GUID_FIXO = "0560c12a-7709-48ab-a43d-59197c2ff120"
-
 @app.route('/consultar_peso', methods=['POST'])
 def processar_peso():
     try:
@@ -426,9 +419,18 @@ def processar_peso():
         except etree.XMLSyntaxError:
             return gerar_erro_xml("XML inválido.")
 
-        tstpeso = root.findtext(".//TSTPESO")
-        if tstpeso not in ["0", "1"]:
-            return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
+        tstpeso = None
+        for field in root.findall(".//Field"):
+            field_id = field.findtext("Id")
+            if field_id == "TSTPESO":
+                tstpeso = field.findtext("Value")
+                break
+
+if tstpeso is None:
+    return gerar_erro_xml("Campo TSTPESO não encontrado no XML.")
+
+if tstpeso not in ["0", "1"]:
+    return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
 
         # Definir o prompt para o Groq com base no valor de TSTPESO
         if tstpeso == "1":
@@ -545,10 +547,6 @@ def gerar_erro_xml(mensagem):
     xml_str = xml_declaration + "\n" + xml_str
 
     return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
 
     
 if __name__ == '__main__':
