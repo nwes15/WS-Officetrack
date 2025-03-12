@@ -381,7 +381,6 @@ def gerar_erro_xml_groq(mensagem):
 
 # consultar peso começa aqui
 
-
 @app.route('/consultar_peso', methods=['POST'])
 def processar_peso():
     try:
@@ -442,32 +441,55 @@ def processar_peso():
             valor_comum = str(round(random.uniform(0.5, 500), 2))  # Mesmo número para ambos
             peso = pesobalanca = valor_comum
 
-        # Atualizar os campos PESO e PESOBALANCA no XML de entrada
-        for field in root.findall(".//Field"):
-            field_id = field.findtext("Id")
-            if field_id == "PESO":
-                field.find("Value").text = peso
-            elif field_id == "PESOBALANCA":
-                field.find("Value").text = pesobalanca
-
-        # Retornar o XML atualizado
-        return gerar_resposta_xml(root)
+        # Retornar o XML no formato ResponseV2
+        return gerar_resposta_xml(peso, pesobalanca)
 
     except Exception as e:
         logging.error(f"Erro ao processar requisição: {e}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
-def gerar_resposta_xml(root):
+def gerar_resposta_xml(peso, pesobalanca):
+    # Cria o XML de resposta no formato ResponseV2
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
+
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+
+    # Adiciona a mensagem
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = "Resposta obtida com sucesso."
+
+    # Adiciona o ReturnValueV2
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    fields = etree.SubElement(return_value, "Fields")
+
+    # Adiciona os campos PESO e PESOBALANCA
+    adicionar_campo(fields, "PESO", peso)
+    adicionar_campo(fields, "PESOBALANCA", pesobalanca)
+
+    # Adiciona ShortText, LongText e Value
+    etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
+    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "Value").text = "58"
+
     # Converte o XML para string
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(root, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str = xml_declaration + "\n" + xml_str
 
     logging.debug(f"Resposta gerada: {xml_str}")
     return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
 
+def adicionar_campo(parent, field_id, value):
+    # Adiciona um campo ao XML
+    field = etree.SubElement(parent, "Field")
+    etree.SubElement(field, "ID").text = field_id
+    etree.SubElement(field, "Value").text = value
+
 def gerar_erro_xml(mensagem):
-    # Cria um XML de erro
+    # Cria um XML de erro no formato ResponseV2
     nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
         'xsd': 'http://www.w3.org/2001/XMLSchema'
