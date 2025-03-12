@@ -400,7 +400,6 @@ def consultar_peso():
         # Tenta extrair o XML de várias fontes possíveis
         xml_data = None
 
-        # Tenta do form primeiro (com vários nomes possíveis)
         if request.form:
             for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
                 if possible_name in request.form:
@@ -408,13 +407,11 @@ def consultar_peso():
                     logging.debug(f"XML encontrado no campo {possible_name}")
                     break
 
-            # Se não encontrou por nome específico, tenta o primeiro campo do form
             if not xml_data and len(request.form) > 0:
                 first_key = next(iter(request.form))
                 xml_data = request.form.get(first_key)
                 logging.debug(f"Usando primeiro campo do form: {first_key}")
 
-        # Se não encontrou no form, tenta do corpo da requisição
         if not xml_data and request.data:
             try:
                 xml_data = request.data.decode('utf-8')
@@ -427,7 +424,6 @@ def consultar_peso():
 
         logging.debug(f"XML para processar: {xml_data}")
 
-        # Tenta fazer o parse do XML
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
         except etree.XMLSyntaxError:
@@ -490,6 +486,7 @@ def gerar_resposta_xml_v2(peso, pesobalanca):
     etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
     etree.SubElement(return_value, "LongText")  # Vazio
     etree.SubElement(return_value, "Value").text = "58"
+    etree.SubElement(return_value, "Action").text = "SendEntry"  # Adicionado
 
     # Gerar XML com declaração e encoding utf-16
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
@@ -527,6 +524,7 @@ def gerar_erro_xml(mensagem):
     etree.SubElement(return_value, "ShortText").text = "Deu Erro"
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "0"
+    etree.SubElement(return_value, "Action").text = "SendEntry"  # Adicionado
 
     # Gerar XML com declaração e encoding utf-16
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
@@ -534,9 +532,6 @@ def gerar_erro_xml(mensagem):
     xml_str = xml_declaration + "\n" + xml_str
 
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
 
     
 if __name__ == '__main__':
