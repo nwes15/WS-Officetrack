@@ -409,36 +409,26 @@ def processar_peso():
                 pass
 
         if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+            return gerar_erro_xml_peso("Não foi possível encontrar dados XML na requisição")
 
         logging.debug(f"XML para processar: {xml_data}")
 
         try:
             root = etree.fromstring(xml_data.encode('utf-8'))
         except etree.XMLSyntaxError:
-            return gerar_erro_xml("Erro ao processar o XML recebido.")
+            return gerar_erro_xml_peso("Erro ao processar o XML recebido.")
 
-
-        campos = processar_campos(root)
+        # Processa os campos do XML uma única vez
+        campos = processar_campos_peso(root)
 
         # Localizar o campo TSTPESO
         tstpeso = campos.get("TSTPESO")
         if not tstpeso:
-            return gerar_erro_xml("Campo TSTPESO não encontrado no XML.")
+            return gerar_erro_xml_peso("Campo TSTPESO não encontrado no XML.")
 
         # Verificar se o campo TSTPESO é 0 ou 1
-        for field in root.findall(".//Field"):
-            field_id = field.findtext("ID")
-            if field_id == "TSTPESO":
-                tstpeso = field.findtext("Value")
-                break
-
-        # Verificar se o campo TSTPESO foi encontrado e é válido
-        if tstpeso is None:
-            return gerar_erro_xml("Campo TSTPESO não encontrado no XML.")
-
         if tstpeso not in ["0", "1"]:
-            return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
+            return gerar_erro_xml_peso("Campo TSTPESO deve ser 0 ou 1.")
 
         # Gerar números aleatórios com base no valor de TSTPESO
         if tstpeso == "1":
@@ -449,98 +439,83 @@ def processar_peso():
             peso = pesobalanca = valor_comum
 
         # Retornar o XML com os campos preenchidos
-        return gerar_resposta_xml(peso, pesobalanca)
+        return gerar_resposta_xml_peso(peso, pesobalanca)
 
     except Exception as e:
         logging.error(f"Erro ao processar requisição: {e}")
-        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+        return gerar_erro_xml_peso(f"Erro interno no servidor: {str(e)}")
 
-def processar_campos(root):
-    """Processa os campos do XML e retorna um dicionário com os valores."""
-    campos = {}
-    for field in root.findall(".//Field"):
-        id = field.findtext("ID") or field.findtext("Id")  # Tenta ambos os formatos
-        value = field.findtext("Value")
-        if id and value:
-            campos[id] = value
-
-    for table_field in root.findall(".//TableField"):
-        table_id = table_field.findtext("ID")
-        rows = []
-        for row in table_field.findall(".//Row"):
-            row_data = {}
-            for field in row.findall(".//Field"):
-                id = field.findtext("ID") or field.findtext("Id")
-                value = field.findtext("Value")
-                if id and value:
-                    row_data[id] = value
-            rows.append(row_data)
-        campos[table_id] = rows
-
-    return campos
-
-
-def gerar_resposta_xml(peso, pesobalanca):
-    # Cria o XML de resposta
+def gerar_resposta_xml_peso(peso, pesobalanca):
+    """Gera a resposta XML com os dados de peso."""
+    # Definir namespaces
     nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
         'xsd': 'http://www.w3.org/2001/XMLSchema'
     }
-
+    
+    # Criar o elemento raiz com namespaces
     response = etree.Element("ResponseV2", nsmap=nsmap)
-
+    
+    # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = "Resposta obtida com sucesso."
-
+    
+    # Criar seção ReturnValueV2
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
-
+    
     # Adiciona os campos PESO e PESOBALANCA
-    adicionar_campo_v5(fields, "PESO", peso)
-    adicionar_campo_v5(fields, "PESOBALANCA", pesobalanca)
-
+    adicionar_campo_peso(fields, "PESO", peso)
+    adicionar_campo_peso(fields, "PESOBALANCA", pesobalanca)
+    
+    # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
-    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "LongText")  # Vazio
     etree.SubElement(return_value, "Value").text = "58"
-
-    # Converte o XML para string
+    
+    # Gerar XML com declaração e encoding utf-16
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
     xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str = xml_declaration + "\n" + xml_str
+    
+    logging.debug(f"XML de Resposta Peso: {xml_str}")  # Depuração no console
+    
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
-    logging.debug(f"Resposta gerada: {xml_str}")
-    return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
-
-def adicionar_campo_v5(parent, field_id, value):
-    # Adiciona um campo ao XML
+def adicionar_campo_peso(parent, field_id, value):
+    """Adiciona um campo ao XML."""
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = value
 
-def gerar_erro_xml(mensagem):
-    # Cria um XML de erro
+def gerar_erro_xml_peso(mensagem):
+    """Gera um XML de erro com mensagem personalizada."""
+    # Definir namespaces
     nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
         'xsd': 'http://www.w3.org/2001/XMLSchema'
     }
-
+    
+    # Criar o elemento raiz com namespaces
     response = etree.Element("ResponseV2", nsmap=nsmap)
-
+    
+    # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
     etree.SubElement(message, "Text").text = mensagem
-
+    
+    # Criar seção ReturnValueV2 vazia
     return_value = etree.SubElement(response, "ReturnValueV2")
     etree.SubElement(return_value, "Fields")
     etree.SubElement(return_value, "ShortText").text = "Deu Erro"
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "0"
-
-    # Converte o XML para string
+    
+    # Gerar XML com declaração e encoding utf-16
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
     xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str = xml_declaration + "\n" + xml_str
-
-    return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
+    
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
     
 if __name__ == '__main__':
