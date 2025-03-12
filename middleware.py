@@ -378,80 +378,139 @@ def gerar_erro_xml_groq(mensagem):
 
     return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
 
+
 # consultar peso começa aqui
 
 @app.route("/consultar_peso", methods=["POST"])
-def consultar_peso():
+
+from flask import Flask, request, Response
+from dotenv import load_dotenv
+import os
+import requests
+from lxml import etree
+import logging
+import random
+
+load_dotenv()
+
+app = Flask(__name__)
+
+logging.basicConfig(level=logging.DEBUG)
+
+GUID_FIXO = "0560c12a-7709-48ab-a43d-59197c2ff120"
+
+
+@app.route('/processar_peso', methods=['POST'])
+def processar_peso():
     try:
-        content_type = request.headers.get("Content-Type", "").lower()
+        content_type = request.headers.get('Content-Type', "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
 
-        xml_data = request.data.decode("utf-8") if request.data else None
-        if not xml_data:
-            return gerar_erro_xml("Nenhum XML foi encontrado na requisição.")
+        xml_data = None
 
-        logging.debug(f"XML recebido: {xml_data}")
+        if request.form:
+            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+                if possible_name in request.form:
+                    xml_data = request.form.get(possible_name)
+                    logging.debug(f"XML encontrado no campo {possible_name}")
+                    break
+
+            if not xml_data and len(request.form) > 0:
+                first_key = next(iter(request.form))
+                xml_data = request.form.get(first_key)
+                logging.debug(f"Usando primeiro campo do form: {first_key}")
+
+        if not xml_data and request.data:
+            try:
+                xml_data = request.data.decode('utf-8')
+                logging.debug("Usando dados brutos do corpo da requisição")
+            except:
+                pass
+
+        if not xml_data:
+            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+
+        logging.debug(f"XML para processar: {xml_data}")
 
         try:
-            root = etree.fromstring(xml_data.encode("utf-8"))
-        except etree.XMLSyntaxError as e:
-            logging.error(f"Erro ao processar XML: {e}")
-            return gerar_erro_xml(f"Erro ao processar o XML recebido: {e}")
+            root = etree.fromstring(xml_data.encode('utf-8'))
+        except etree.XMLSyntaxError:
+            return gerar_erro_xml("XML inválido.")
 
-        # Verificar a tag TSTPESO
-        tstpeso_element = root.find(".//Field[Id='TSTPESO']/Value")
-        tst_peso = tstpeso_element.text.strip() if tstpeso_element is not None else "0"
+        tstpeso = root.findtext(".//TSTPESO")
+        if tstpeso not in ["0", "1"]:
+            return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
 
-        logging.debug(f"TSTPESO encontrado: {tst_peso}")
-
-        # Call the Groq API to generate the response
-        groq_response = call_groq_api(tst_peso)
-
-        if groq_response.startswith("<"):
-          return Response(groq_response.encode("utf-16"), content_type="application/xml; charset=utf-16")
+        # Gerar números entre 0,5 e 500
+        if tstpeso == "1":
+            peso = str(round(random.uniform(0.5, 500), 2))  # Arredonda para 2 casas decimais
+            pesobalanca = str(round(random.uniform(0.5, 500), 2))
         else:
-          return gerar_erro_xml(groq_response)
+            valor_comum = str(round(random.uniform(0.5, 500), 2))
+            peso = pesobalanca = valor_comum
+
+        return gerar_resposta_xml(peso, pesobalanca)
 
     except Exception as e:
-        logging.error(f"Erro interno: {str(e)}")
+        logging.error(f"Erro ao processar requisição: {e}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
-def call_groq_api(tst_peso):
-    """Calls the Groq API to generate the PESO and PESOBALANCA values."""
-    try:
-        prompt = f"Generate XML in ResponseV2 format with PESO and PESOBALANCA values. If TSTPESO is 1, generate two different random numbers between 0.5 and 500. If TSTPESO is 0, generate two equal random numbers between 0.5 and 500. TSTPESO={tst_peso}"
+def gerar_resposta_xml(peso, pesobalanca):
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
 
-        payload = {
-            "model": "mixtral-8x7b-32768",  # Or the desired Groq model
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7 # Adjust as needed
-        }
+    response = etree.Element("ResponseV2", nsmap=nsmap)
 
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = "Resposta obtida com sucesso."
 
-        response = requests.post(GROQ_API_URL, headers=headers, json=payload)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    fields = etree.SubElement(return_value, "Fields")
 
-        json_response = response.json()
-        xml_output = json_response["choices"][0]["message"]["content"].strip()
-        return xml_output
+    adicionar_campo(fields, "PESO", peso)
+    adicionar_campo(fields, "PESOBALANCA", pesobalanca)
 
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Erro ao chamar API Groq: {e}")
-        return f"Erro ao chamar API Groq: {e}"  # Return text error for now
-    except KeyError as e:
-        logging.error(f"Erro ao processar resposta da API Groq (KeyError): {e}")
-        return f"Erro ao processar resposta da API Groq: {e}"
-    except Exception as e:
-        logging.error(f"Erro inesperado ao chamar API Groq: {e}")
-        return f"Erro inesperado ao chamar API Groq: {e}"
+    etree.SubElement(return_value, "ShortText").text = "Segue pesos"
+    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "Value").text = "58"
+
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+
+    logging.debug(f"Resposta gerada: {xml_str}")
+    return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
+
+def adicionar_campo(parent, field_id, value):
+    field = etree.SubElement(parent, "Field")
+    etree.SubElement(field, "ID").text = field_id
+    etree.SubElement(field, "Value").text = value
 
 def gerar_erro_xml(mensagem):
-    """Gera um TEXT error message for now."""
-    return Response(mensagem, content_type='text/plain; charset=utf-8', status=500)
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
+
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = mensagem
+
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    etree.SubElement(return_value, "Fields")
+    etree.SubElement(return_value, "ShortText").text = "Deu Erro"
+    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "Value").text = "0"
+
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+
+    return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
+
 
     
 if __name__ == '__main__':
