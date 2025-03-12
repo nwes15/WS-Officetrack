@@ -489,8 +489,9 @@ def consultar_peso():
         # Tenta fazer o parse do XML
         try:
             root = etree.fromstring(xml_data.encode("utf-8"))
-        except etree.XMLSyntaxError:
-            return gerar_erro_xml("Erro ao processar o XML recebido.")
+        except etree.XMLSyntaxError as e:
+            logging.error(f"XML parsing error: {e}")
+            return gerar_erro_xml(f"Erro ao processar o XML recebido: {e}")
 
         # Find TSTPESO value using XPath (most robust)
         tstpeso_element = root.find(".//Field[Id='TSTPESO']/Value")
@@ -501,11 +502,19 @@ def consultar_peso():
         peso1, peso2 = gerar_pesos(tst_peso == "1")  # Pass boolean for clarity
         logging.debug(f"Generated weights: PESO={peso1}, PESOBALANCA={peso2}")
 
-        # Update the input XML with the new weight values
+        # *UPDATE THE INPUT XML, NOT CREATING A NEW ONE*
         update_xml_weights(root, peso1, peso2)
 
         # Serialize the modified XML back to a string
-        xml_str = etree.tostring(root, encoding="utf-16", xml_declaration=True).decode("utf-16")
+        try:
+            xml_str = etree.tostring(root, encoding="utf-16", xml_declaration=True).decode("utf-16")
+        except Exception as e:
+            logging.error(f"Error serializing XML: {e}")
+            return gerar_erro_xml(f"Error serializing XML: {e}")
+
+        if xml_str is None:
+            logging.error("XML string is None!")
+            return gerar_erro_xml("XML string is None after serialization!")
 
         logging.debug(f"XML de Resposta: {xml_str}")
 
@@ -531,55 +540,41 @@ def gerar_pesos(different):
 def update_xml_weights(root, peso1, peso2):
     """Updates the Value elements for PESO and PESOBALANCA in the XML."""
     # Find the Field elements for PESO and PESOBALANCA
-    peso_field = root.find(".//Field[Id='PESO']")
-    pesobalanca_field = root.find(".//Field[Id='PESOBALANCA']")
+    try:
+        peso_field = root.find(".//Field[Id='PESO']")
+        pesobalanca_field = root.find(".//Field[Id='PESOBALANCA']")
 
-    # Update the Value elements if the Field elements are found
-    if peso_field is not None:
-        value_elem = peso_field.find("Value")
-        if value_elem is not None:
-            value_elem.text = str(peso1)
-        else:
-            # create Value element if missing
-            etree.SubElement(peso_field, "Value").text = str(peso1)
+        logging.debug(f"peso_field: {peso_field}")  # Check if found
+        logging.debug(f"pesobalanca_field: {pesobalanca_field}")  # Check if found
 
-    if pesobalanca_field is not None:
-        value_elem = pesobalanca_field.find("Value")
-        if value_elem is not None:
-            value_elem.text = str(peso2)
-        else:
-            # create Value element if missing
-            etree.SubElement(pesobalanca_field, "Value").text = str(peso2)
+        # Update the Value elements if the Field elements are found
+        if peso_field is not None:
+            value_elem = peso_field.find("Value")
+            if value_elem is not None:
+                logging.debug(f"Updating PESO value to: {peso1}")
+                value_elem.text = str(peso1)
+            else:
+                logging.warning("Value element not found for PESO, creating one.")
+                etree.SubElement(peso_field, "Value").text = str(peso1)
+
+        if pesobalanca_field is not None:
+            value_elem = pesobalanca_field.find("Value")
+            if value_elem is not None:
+                logging.debug(f"Updating PESOBALANCA value to: {peso2}")
+                value_elem.text = str(peso2)
+            else:
+                logging.warning("Value element not found for PESOBALANCA, creating one.")
+                etree.SubElement(pesobalanca_field, "Value").text = str(peso2)
+    except Exception as e:
+        logging.error(f"Error in update_xml_weights: {e}")
+        raise  # Re-raise the exception to be caught in consultar_peso
 
 
 def gerar_erro_xml(mensagem):
-    """Gera um XML de erro com mensagem personalizada no formato V2."""
-    # Definir namespaces
-    nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
-    }
-
-    # Criar o elemento raiz com namespaces
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-
-    # Adicionar seção de mensagem
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = mensagem
-
-    # Criar seção ReturnValueV2 vazia
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = "ERRO NA VALIDAÇÃO"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "0"
-
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str = xml_declaration + "\n" + xml_str
-
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    """Gera um XML de erro with custom message (but not V2 format)."""
+    # Basic error XML (not in V2 format)
+    error_xml = f'<Error><Message>{mensagem}</Message></Error>'
+    return Response(error_xml, content_type='application/xml; charset=utf-8', status=500)
     
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
