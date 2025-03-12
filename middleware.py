@@ -463,7 +463,7 @@ def gerar_pesos(different):
 def build_response_xml(peso1, peso2):
     """Builds the ResponseV2 XML string."""
     nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
         'xsd': 'http://www.w3.org/2001/XMLSchema'
     }
 
