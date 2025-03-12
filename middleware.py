@@ -502,35 +502,48 @@ def gerar_pesos(diferentes):
 
 def criar_resposta_xml(peso1, peso2):
     """Cria o XML de resposta no formato ResponseV2 esperado."""
-    response = etree.Element("ResponseV2", attrib={
-        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-        "xmlns:xsd": "http://www.w3.org/2001/XMLSchema"
-    })
+    
+    nsmap = {
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "xsd": "http://www.w3.org/2001/XMLSchema"
+    }
+
+    response = etree.Element("ResponseV2", nsmap=nsmap)
 
     message = etree.SubElement(response, "MessageV2")
-    message_text = etree.SubElement(message, "Text")
-    message_text.text = "Consulta de peso realizada com sucesso."
+    etree.SubElement(message, "Text").text = "Consulta de peso realizada com sucesso."
 
     return_value = etree.SubElement(response, "ReturnValueV2")
-
     fields = etree.SubElement(return_value, "Fields")
 
-    peso_field = etree.SubElement(fields, "Field")
-    etree.SubElement(peso_field, "ID").text = "PESO"
-    etree.SubElement(peso_field, "Value").text = str(peso1)
+    # Criando os campos PESO e PESOBALANCA
+    adicionar_campo_v5(fields, "PESO", str(peso1))
+    adicionar_campo_v5(fields, "PESOBALANCA", str(peso2))
 
-    pesobalanca_field = etree.SubElement(fields, "Field")
-    etree.SubElement(pesobalanca_field, "ID").text = "PESOBALANCA"
-    etree.SubElement(pesobalanca_field, "Value").text = str(peso2)
+    # Adicionar elementos extras conforme estrutura do CEP
+    etree.SubElement(return_value, "ShortText").text = "Consulta realizada"
+    etree.SubElement(return_value, "LongText")  # Vazio
+    etree.SubElement(return_value, "Value").text = "1"
 
-    return etree.tostring(response, encoding="utf-16", xml_declaration=True).decode("utf-16")
+    # Criando o XML com a declaração UTF-16 correta
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_str = xml_declaration + "\n" + xml_str
+
+    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+
+def adicionar_campo_v5(parent, id, valor):
+    """Adiciona um campo no formato esperado em Fields."""
+    field = etree.SubElement(parent, "Field")
+    etree.SubElement(field, "ID").text = id
+    etree.SubElement(field, "Value").text = valor
 
 
 def gerar_erro_xml(mensagem):
     """Gera um XML de erro com formato ResponseV2."""
     response = etree.Element("ResponseV2", attrib={
-        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-        "xmlns:xsd": "http://www.w3.org/2001/XMLSchema"
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "xsd": "http://www.w3.org/2001/XMLSchema"
     })
 
     message = etree.SubElement(response, "MessageV2")
