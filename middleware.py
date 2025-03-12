@@ -445,6 +445,26 @@ def processar_peso():
         logging.error(f"Erro ao processar requisição: {e}")
         return gerar_erro_xml_peso(f"Erro interno no servidor: {str(e)}")
 
+def processar_campos_peso(root):
+    """Processa os campos do XML e retorna um dicionário com os valores."""
+    campos = {}
+    # Primeiro, tenta encontrar os campos usando Id
+    for field in root.findall(".//Field"):
+        id = field.findtext("Id")
+        value = field.findtext("Value")
+        if id and value:
+            campos[id] = value
+    
+    # Se não encontrar muitos campos, tenta com o ID maiúsculo
+    if len(campos) < 2:
+        for field in root.findall(".//Field"):
+            id = field.findtext("ID")
+            value = field.findtext("Value")
+            if id and value:
+                campos[id] = value
+    
+    return campos
+
 def gerar_resposta_xml_peso(peso, pesobalanca):
     """Gera a resposta XML com os dados de peso."""
     # Definir namespaces
