@@ -472,7 +472,7 @@ def gerar_resposta_xml_v2(peso, pesobalanca):
 
     # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Resposta obtida com sucesso."
+    etree.SubElement(message, "Text").text = "Message..."  # Texto exato
 
     # Criar seção ReturnValueV2
     return_value = etree.SubElement(response, "ReturnValueV2")
@@ -483,10 +483,9 @@ def gerar_resposta_xml_v2(peso, pesobalanca):
     adicionar_campo_v2(fields, "PESOBALANCA", pesobalanca)
 
     # Adicionar campos adicionais do ReturnValueV2
-    etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
+    etree.SubElement(return_value, "ShortText").text = "Segue resposta"  # Texto exato
     etree.SubElement(return_value, "LongText")  # Vazio
-    etree.SubElement(return_value, "Value").text = "58"
-    etree.SubElement(return_value, "Action").text = "SendEntry"  # Adicionado
+    etree.SubElement(return_value, "Value").text = "58"  # Valor exato
 
     # Gerar XML com declaração e encoding utf-16
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
