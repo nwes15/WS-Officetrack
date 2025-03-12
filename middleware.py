@@ -432,10 +432,10 @@ def processar_peso():
 
         # Gerar números aleatórios com base no valor de TSTPESO
         if tstpeso == "1":
-            peso = str(round(random.uniform(0.5, 500), 2))  # Número aleatório entre 0,5 e 500
-            pesobalanca = str(round(random.uniform(0.5, 500), 2))  # Outro número aleatório
+            peso = str(round(random.uniform(0.5, 500), 2)).replace('.', ',')  # Número aleatório entre 0,5 e 500
+            pesobalanca = str(round(random.uniform(0.5, 500), 2)).replace('.', ',')  # Outro número aleatório
         else:
-            valor_comum = str(round(random.uniform(0.5, 500), 2))  # Mesmo número para ambos
+            valor_comum = str(round(random.uniform(0.5, 500), 2)).replace('.', ',')  # Mesmo número para ambos
             peso = pesobalanca = valor_comum
 
         # Retornar o XML com os campos preenchidos
