@@ -381,17 +381,7 @@ def gerar_erro_xml_groq(mensagem):
 
 # consultar peso começa aqui
 
-@app.route("/consultar_peso", methods=["POST"])
 
-from flask import Flask, request, Response
-from dotenv import load_dotenv
-import os
-import requests
-from lxml import etree
-import logging
-import random
-
-load_dotenv()
 
 app = Flask(__name__)
 
@@ -399,8 +389,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 GUID_FIXO = "0560c12a-7709-48ab-a43d-59197c2ff120"
 
-
-@app.route('/processar_peso', methods=['POST'])
+@app.route('/consultar_peso', methods=['POST'])
 def processar_peso():
     try:
         content_type = request.headers.get('Content-Type', "").lower()
@@ -441,19 +430,65 @@ def processar_peso():
         if tstpeso not in ["0", "1"]:
             return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
 
-        # Gerar números entre 0,5 e 500
+        # Definir o prompt para o Groq com base no valor de TSTPESO
         if tstpeso == "1":
-            peso = str(round(random.uniform(0.5, 500), 2))  # Arredonda para 2 casas decimais
-            pesobalanca = str(round(random.uniform(0.5, 500), 2))
+            prompt = "Gere dois números aleatórios e diferentes entre 0,5 e 500."
         else:
-            valor_comum = str(round(random.uniform(0.5, 500), 2))
-            peso = pesobalanca = valor_comum
+            prompt = "Gere um número aleatório entre 0,5 e 500 e use o mesmo valor para ambos os campos."
+
+        # Consultar a API do Groq
+        resposta_groq = consultar_groq_api(prompt)
+        if not resposta_groq:
+            return gerar_erro_xml("Erro ao consultar a API do Groq.")
+
+        # Extrair os números da resposta do Groq
+        try:
+            if tstpeso == "1":
+                numeros = [float(x) for x in resposta_groq.split() if x.replace('.', '').isdigit()]
+                if len(numeros) >= 2:
+                    peso = str(round(numeros[0], 2))
+                    pesobalanca = str(round(numeros[1], 2))
+                else:
+                    return gerar_erro_xml("A API do Groq não retornou números suficientes.")
+            else:
+                numeros = [float(x) for x in resposta_groq.split() if x.replace('.', '').isdigit()]
+                if numeros:
+                    peso = pesobalanca = str(round(numeros[0], 2))
+                else:
+                    return gerar_erro_xml("A API do Groq não retornou um número válido.")
+        except Exception as e:
+            logging.error(f"Erro ao processar resposta do Groq: {e}")
+            return gerar_erro_xml("Erro ao processar resposta do Groq.")
 
         return gerar_resposta_xml(peso, pesobalanca)
 
     except Exception as e:
         logging.error(f"Erro ao processar requisição: {e}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
+
+def consultar_groq_api(prompt):
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": "llama3-70b-8192",
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    try:
+        response = requests.post(GROQ_API_URL, headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+        else:
+            logging.error(f"Erro ao consultar API do Groq: {response.text}")
+            return None
+    except Exception as e:
+        logging.error(f"Erro ao consultar API do Groq: {e}")
+        return None
 
 def gerar_resposta_xml(peso, pesobalanca):
     nsmap = {
@@ -472,7 +507,7 @@ def gerar_resposta_xml(peso, pesobalanca):
     adicionar_campo(fields, "PESO", peso)
     adicionar_campo(fields, "PESOBALANCA", pesobalanca)
 
-    etree.SubElement(return_value, "ShortText").text = "Segue pesos"
+    etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "58"
 
@@ -510,6 +545,9 @@ def gerar_erro_xml(mensagem):
     xml_str = xml_declaration + "\n" + xml_str
 
     return Response(xml_str.encode('utf-16'), content_type="application/xml; charset=utf-16")
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
 
 
     
