@@ -413,9 +413,19 @@ def processar_peso():
 
         logging.debug(f"XML para processar: {xml_data}")
 
+        # ADICIONAR ESTE BLOCO: Tenta fazer o parsing do XML com recuperação de erros
         try:
-            root = etree.fromstring(xml_data.encode('utf-8'))
-        except etree.XMLSyntaxError:
+            # Configurar o parser para recuperar de erros
+            parser = etree.XMLParser(recover=True)
+            
+            # Ler o XML a partir da string
+            tree = etree.parse(StringIO(xml_data), parser)
+
+            # Obter o elemento raiz (o <Form>)
+            root = tree.getroot()
+
+        except etree.XMLSyntaxError as e:
+            logging.error(f"Erro ao processar o XML: {e}")
             return gerar_erro_xml_peso("Erro ao processar o XML recebido.")
 
         # Processa os campos do XML uma única vez
