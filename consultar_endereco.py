@@ -136,7 +136,7 @@ def gerar_resposta_xml_v2(data):
     adicionar_campo_v2(fields, "BAIRRO", address.get("neighbourhood", "") or address.get("suburb", ""))
     adicionar_campo_v2(fields, "CIDADE", address.get("city", "") or address.get("town", ""))
     adicionar_campo_v2(fields, "ESTADO", address.get("state", ""))
-    adicionar_campo_v2(fields, "UF", data.get("country_code", ""))
+    adicionar_campo_v2(fields, "UF", address.get("country_code", ""))
     
     
 
