@@ -49,7 +49,7 @@ def consultar_endereco():
         campos = processar_campos(root)
 
         # Extrai as coordenadas do XML
-        latlong = campos.get("local")
+        latlong = campos.get("LATLONG") or campos.get("local") or campos.get("coordenadas")
         if not latlong:
             return gerar_erro_xml("Erro: Campo 'local' (LATLONG) não encontrado no XML.")
 
