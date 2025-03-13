@@ -489,7 +489,7 @@ def gerar_resposta_xml_peso(peso, pesobalanca):
     
     # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Resposta obtida com sucesso."
+    etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
     
     # Criar seção ReturnValueV2
     return_value = etree.SubElement(response, "ReturnValueV2")
@@ -500,7 +500,7 @@ def gerar_resposta_xml_peso(peso, pesobalanca):
     adicionar_campo_peso(fields, "PESOBALANCA", pesobalanca)
     
     # Adicionar campos adicionais do ReturnValueV2
-    etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
+    etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
     etree.SubElement(return_value, "LongText")  # Vazio
     etree.SubElement(return_value, "Value").text = "58"
     
@@ -532,12 +532,12 @@ def gerar_erro_xml_peso(mensagem):
     
     # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = mensagem
+    etree.SubElement(message, "Text").text = "Erro no processamento"
     
     # Criar seção ReturnValueV2 vazia
     return_value = etree.SubElement(response, "ReturnValueV2")
     etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = "Deu Erro"
+    etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "0"
     
