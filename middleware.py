@@ -1,48 +1,25 @@
-from flask import Flask, request, Response
-import requests
-import os
-import dicttoxml
+from flask import Flask
+from dotenv import load_dotenv
+import logging
+from consultar_cep import consultar_cep
+from consultar_groq import consultar_groq
+from consultar_peso import consultar_peso
+from capturar_xml import capturar_xml
+
+
+load_dotenv()
 
 app = Flask(__name__)
 
-@app.route('/busca-cep', methods=['GET'])
-def busca_cep():
-    cep = request.args.get('CEP')
+# Configuração do logger
+logging.basicConfig(level=logging.DEBUG)
 
-    if not cep:
-        return Response('<error>CEP não informado</error>', status=400, mimetype='application/xml')
+# Registrar as rotas de cada serviço
+app.add_url_rule("/consultar_cep", methods=["POST"], view_func=consultar_cep)
+app.add_url_rule("/consultar_groq", methods=['POST'], view_func=consultar_groq)
+app.add_url_rule("/consultar_peso", methods=['POST'], view_func=consultar_peso)
+app.add_url_rule("/capturar_xml", methods=['POST'], view_func=capturar_xml)
 
-    try:
-        # Fazendo a requisição à API ViaCep
-        response = requests.get(f'https://viacep.com.br/ws/{cep}/json/')
-        
-        # Checando o status da requisição
-        if response.status_code != 200:
-            return Response('<error>Erro na requisição</error>', status=500, mimetype='application/xml')
-        
-        dados = response.json()
-
-        # Verificando se o CEP retornou erro
-        if "erro" in dados:
-            return Response('<error>CEP não encontrado</error>', status=404, mimetype='application/xml')
-
-        # Organizando os dados para conversão para XML
-        result = {
-            'LOGRADOURO': dados.get('logradouro', ''),
-            'COMPLEMENTO': dados.get('complemento', ''),
-            'BAIRRO': dados.get('bairro', ''),
-            'CIDADE': dados.get('localidade', ''),
-            'ESTADO': dados.get('uf', ''),
-        }
-
-        # Convertendo para XML
-        xml_response = dicttoxml.dicttoxml(result, custom_root='xmlcep', ids=False)
-
-        return Response(xml_response, mimetype='application/xml')
-    
-    except requests.exceptions.RequestException as e:
-        return Response(f'<error>Erro ao buscar CEP: {str(e)}</error>', status=500, mimetype='application/xml')
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=True, port=5000)
