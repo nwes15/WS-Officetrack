@@ -2,6 +2,9 @@ from flask import request, Response
 import requests
 from lxml import etree
 import logging
+from utils.gerar_erro import gerar_erro_xml
+from utils.adicionar_campo import adicionar_campo
+from utils.adicionar_table_field import adicionar_table_field
 
 def consultar_cep():
     try:
@@ -50,7 +53,7 @@ def consultar_cep():
         # Faz a requisição à API ViaCEP
         cep = campos.get("CEP")
         if not cep:
-            return gerar_erro_xml("Erro: CEP não informado no campo CEP.")
+            return gerar_erro_xml("Erro: CEP não informado no campo CEP.", "CEP invalido")
 
         response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
@@ -112,16 +115,16 @@ def gerar_resposta_xml_v2(data):
     
     # Mapear dados do CEP para os novos campos
     # Você pode ajustar este mapeamento conforme necessário
-    adicionar_campo_v2(fields, "LOGRADOURO", data.get("logradouro", ""))
-    adicionar_campo_v2(fields, "COMPLEMENTO", data.get("complemento", ""))
-    adicionar_campo_v2(fields, "BAIRRO", data.get("bairro", ""))
-    adicionar_campo_v2(fields, "CIDADE", data.get("localidade", ""))
-    adicionar_campo_v2(fields, "ESTADO", data.get("estado", ""))
-    adicionar_campo_v2(fields, "UF", data.get("uf", ""))
+    adicionar_campo(fields, "LOGRADOURO", data.get("logradouro", ""))
+    adicionar_campo(fields, "COMPLEMENTO", data.get("complemento", ""))
+    adicionar_campo(fields, "BAIRRO", data.get("bairro", ""))
+    adicionar_campo(fields, "CIDADE", data.get("localidade", ""))
+    adicionar_campo(fields, "ESTADO", data.get("estado", ""))
+    adicionar_campo(fields, "UF", data.get("uf", ""))
     
     # Adiciona campos exemplo conforme solicitado
-    adicionar_campo_v2(fields, "Test1", "ZZZ")
-    adicionar_campo_v2(fields, "Num1", "777")
+    adicionar_campo(fields, "Test1", "ZZZ")
+    adicionar_campo(fields, "Num1", "777")
     
     # Adicionar TableField exemplo
     adicionar_table_field(fields)
@@ -137,53 +140,5 @@ def gerar_resposta_xml_v2(data):
     xml_str = xml_declaration + "\n" + xml_str
     
     logging.debug(f"XML de Resposta V2: {xml_str}")  # Depuração no console
-    
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
-def adicionar_campo_v2(parent, field_id, value):
-    """Adiciona um campo ao XML no formato V2."""
-    field = etree.SubElement(parent, "Field")
-    etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = value
-
-def adicionar_table_field(parent):
-    """Adiciona um TableField com duas linhas de exemplo."""
-    table_field = etree.SubElement(parent, "TableField")
-    etree.SubElement(table_field, "ID").text = "Table1"
-    rows = etree.SubElement(table_field, "Rows")
-    
-    # Primeira linha
-    row1 = etree.SubElement(rows, "Row")
-    fields1 = etree.SubElement(row1, "Fields")
-    adicionar_campo_v2(fields1, "TextTable", "Y")
-    adicionar_campo_v2(fields1, "NumTable", "9")
-    
-
-def gerar_erro_xml(mensagem):
-    """Gera um XML de erro com mensagem personalizada no formato V2."""
-    # Definir namespaces
-    nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
-    }
-    
-    # Criar o elemento raiz com namespaces
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Adicionar seção de mensagem
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = mensagem
-    
-    # Criar seção ReturnValueV2 vazia
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = "DEU ERRO WES"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "0"
-    
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str = xml_declaration + "\n" + xml_str
     
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")

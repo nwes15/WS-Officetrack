@@ -3,6 +3,8 @@ from lxml import etree
 import logging
 import random
 from io import StringIO
+from utils.gerar_erro import gerar_erro_xml
+from utils.adicionar_campo import adicionar_campo
 
 def consultar_peso():
     try:
@@ -31,7 +33,7 @@ def consultar_peso():
                 pass
 
         if not xml_data:
-            return gerar_erro_xml_peso("Não foi possível encontrar dados XML na requisição")
+            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
 
         logging.debug(f"XML para processar: {xml_data}")
 
@@ -48,7 +50,7 @@ def consultar_peso():
 
         except etree.XMLSyntaxError as e:
             logging.error(f"Erro ao processar o XML: {e}")
-            return gerar_erro_xml_peso("Erro ao processar o XML recebido.")
+            return gerar_erro_xml("Erro ao processar o XML recebido.")
 
         # Processa os campos do XML uma única vez
         campos = processar_campos_peso(root)
@@ -56,11 +58,11 @@ def consultar_peso():
         # Localizar o campo TSTPESO
         tstpeso = campos.get("TSTPESO")
         if not tstpeso:
-            return gerar_erro_xml_peso("Campo TSTPESO não encontrado no XML.")
+            return gerar_erro_xml("Campo TSTPESO não encontrado no XML.")
 
         # Verificar se o campo TSTPESO é 0 ou 1
         if tstpeso not in ["0", "1"]:
-            return gerar_erro_xml_peso("Campo TSTPESO deve ser 0 ou 1.")
+            return gerar_erro_xml("Campo TSTPESO deve ser 0 ou 1.")
 
         # Gerar números aleatórios com base no valor de TSTPESO
         if tstpeso == "1":
@@ -75,7 +77,7 @@ def consultar_peso():
 
     except Exception as e:
         logging.error(f"Erro ao processar requisição: {e}")
-        return gerar_erro_xml_peso(f"Erro interno no servidor: {str(e)}")
+        return gerar_erro_xml(f"Erro interno no servidor: {str(e)}")
 
 def processar_campos_peso(root):
     """Processa os campos do XML e retorna um dicionário com os valores."""
@@ -117,8 +119,8 @@ def gerar_resposta_xml_peso(peso, pesobalanca):
     fields = etree.SubElement(return_value, "Fields")
     
     # Adiciona os campos PESO e PESOBALANCA
-    adicionar_campo_peso(fields, "PESO", peso)
-    adicionar_campo_peso(fields, "PESOBALANCA", pesobalanca)
+    adicionar_campo(fields, "PESO", peso)
+    adicionar_campo(fields, "PESOBALANCA", pesobalanca)
     
     # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
@@ -131,40 +133,5 @@ def gerar_resposta_xml_peso(peso, pesobalanca):
     xml_str = xml_declaration + "\n" + xml_str
     
     logging.debug(f"XML de Resposta Peso: {xml_str}")  # Depuração no console
-    
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
-def adicionar_campo_peso(parent, field_id, value):
-    """Adiciona um campo ao XML."""
-    field = etree.SubElement(parent, "Field")
-    etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = value
-
-def gerar_erro_xml_peso(mensagem):
-    """Gera um XML de erro com mensagem personalizada."""
-    # Definir namespaces
-    nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
-    }
-    
-    # Criar o elemento raiz com namespaces
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Adicionar seção de mensagem
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Erro no processamento"
-    
-    # Criar seção ReturnValueV2 vazia
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "0"
-    
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str = xml_declaration + "\n" + xml_str
     
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
