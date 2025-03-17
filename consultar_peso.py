@@ -28,12 +28,12 @@ def consultar_peso():
         if not xml_data and request.data:
             try:
                 xml_data = request.data.decode('utf-8')
-                logging.debug("Usando dados brutos do corpo da requisição")
+                logging.debug("Usando dados brutos do corpo da requisição""Pressione lixeira para nova consulta.")
             except:
                 pass
 
         if not xml_data:
-            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição")
+            return gerar_erro_xml("Não foi possível encontrar dados XML na requisição", "Pressione lixeira para nova consulta.")
 
         logging.debug(f"XML para processar: {xml_data}")
 

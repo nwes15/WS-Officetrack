@@ -85,7 +85,7 @@ def processar_campos(root):
         for row in table_field.findall(".//Row"):
             row_data = {}
             for field in row.findall(".//Field"):
-                id = field.findtext("ID") or field.findtext("Id")
+                id = field.findtext("ID")
                 value = field.findtext("Value")
                 if id and value:
                     row_data[id] = value
