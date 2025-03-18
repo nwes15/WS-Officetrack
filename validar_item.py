@@ -7,38 +7,27 @@ from flask import request, Response
 import requests
 from lxml import etree
 import logging
+from io import StringIO
+from utils.xml_da_requisicao import obter_xml_da_requisicao
 
 def validar_item():
     try:
-        content_type = request.headers.get("Content-Type", "").lower()
-        logging.debug(f"Tipo de conteúdo recebido: {content_type}")
-
-        xml_data = None
-        if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-                if possible_name in request.form:
-                    xml_data = request.form.get(possible_name)
-                    logging.debug(f"XML encontrado no campo {possible_name}")
-                    break
-            if not xml_data and len(request.form) > 0:
-                first_key = next(iter(request.form))
-                xml_data = request.form.get(first_key)
-                logging.debug(f"Usando primeiro campo do form: {first_key}")
-
-        if not xml_data and request.data:
-            try:
-                xml_data = request.data.decode('utf-8')
-                logging.debug("Usando dados brutos do corpo da requisição")
-            except:
-                pass
-
+        xml_data = obter_xml_da_requisicao()
         if not xml_data:
             return gerar_resposta_xml(mensagem="Não foi possível encontrar dados XML na requisição", value = "Erro", shorttext= "Erro", icon = "Critical")
 
         logging.debug(f"XML para processar: {xml_data}")
 
         try:
-            root = etree.fromstring(xml_data.encode('utf-8'))
+            # Configurar o parser para recuperar de erros
+            parser = etree.XMLParser(recover=True)
+            
+            # Ler o XML a partir da string
+            tree = etree.parse(StringIO(xml_data), parser)
+
+            # Obter o elemento raiz (o <Form>)
+            root = tree.getroot()
+
         except etree.XMLSyntaxError as e:
             logging.error(f"Erro ao processar o XML: {e}")
             return gerar_resposta_xml(mensagem=f"Erro ao processar o XML recebido: {e}", value = "Erro", shorttext= "Erro", icon = "Critical")
@@ -48,9 +37,6 @@ def validar_item():
         tstws = campos.get("TSTWS")
         if not tstws:
             return gerar_resposta_xml(mensagem="Campo TSTWS não encontrado no XML.",  value = "Erro", shorttext= "Erro", icon = "Critical")
-        
-        if tstws not in ["0", "1"]:
-            return gerar_resposta_xml(mensagem="Valor inválido para o campo TSTWS. Deve ser 0 ou 1.", value = "Erro", shorttext= "Erro", icon = "Critical")
 
         #Processa a resposta de acordo com o valor de TSTWS
         if tstws == "0":
