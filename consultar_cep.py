@@ -148,11 +148,6 @@ def gerar_resposta_xml_v2(data):
     
     return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
-def adicionar_campo(parent, field_id, value):
-    """Adiciona um campo ao XML."""
-    field = etree.SubElement(parent, "Field")
-    etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = value
 
 def adicionar_table_field(parent, field_id, rows_data):
     """Adiciona um TableField com linhas dinâmicas."""
