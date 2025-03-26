@@ -7,7 +7,6 @@ app = Flask(__name__)
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/capturar_xml", methods=["POST"])
 def capturar_xml():
     try:
         content_type = request.headers.get("Content-Type", "").lower()
