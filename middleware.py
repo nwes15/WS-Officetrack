@@ -30,6 +30,5 @@ app.add_url_rule("/consultar_peso2", methods=['POST'], view_func=consultar_peso2
 app.add_url_rule("/funcao_unica", methods=['POST'], view_func=consultar_peso_unico)
 
 
-
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
