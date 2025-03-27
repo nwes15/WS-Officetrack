@@ -45,7 +45,7 @@ def gerar_valores_peso(tstpeso, balanca):
         return peso, pesobalanca
 
 @app.route("/consultar_peso", methods=['POST'])
-def consultar_peso():
+def consultar_peso_unico():
     try:
         # Obter XML da requisição
         xml_data = request.data.decode('utf-8') if request.content_type == 'application/xml' else request.form.get('xml') or request.form.get('TextXML') or next(iter(request.form.values()))
