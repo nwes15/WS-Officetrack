@@ -3,16 +3,40 @@ from lxml import etree
 import random
 import logging
 from io import StringIO
-from utils import gerar_erro
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# Variável global para armazenar o último valor gerado
-ultimo_valor = {
-    'balanca1': None,
-    'balanca2': None
+# Dicionário global para controle dos valores
+valores_gerados = {
+    'tstpeso0': set(),  # Armazena todos os valores gerados com TSTPESO=0
+    'ultimos_valores': {
+        'balanca1': None,
+        'balanca2': None
+    }
 }
+
+def gerar_valor_unico():
+    """Gera um valor único quando TSTPESO=0"""
+    while True:
+        valor = str(round(random.uniform(0.5, 500), 2)).replace('.', ',')
+        if valor not in valores_gerados['tstpeso0']:
+            valores_gerados['tstpeso0'].add(valor)
+            return valor
+
+def gerar_valores_peso(tstpeso, balanca):
+    """Gera valores de peso garantindo não repetição quando TSTPESO=0"""
+    if tstpeso == "0":
+        # Para TSTPESO=0, gera valores iguais mas únicos entre balanças
+        valor_comum = gerar_valor_unico()
+        valores_gerados['ultimos_valores'][balanca] = valor_comum
+        return valor_comum, valor_comum
+    else:
+        # Para TSTPESO=1, gera valores independentes
+        peso = str(round(random.uniform(0.5, 500), 2)).replace('.', ',')
+        pesobalanca = str(round(random.uniform(0.5, 500), 2)).replace('.', ',')
+        valores_gerados['ultimos_valores'][balanca] = peso
+        return peso, pesobalanca
 
 def extrair_campos_xml(xml_data):
     """Extrai campos relevantes do XML de entrada"""
@@ -48,17 +72,6 @@ def determinar_balanca(campos):
     
     # Padrão: balanca1
     return "balanca1"
-
-def gerar_valores_peso(tstpeso):
-    """Gera valores de peso conforme a lógica especificada"""
-    def formatar_numero():
-        return str(round(random.uniform(0.5, 500), 2)).replace('.', ',')
-
-    if tstpeso == "1":
-        return formatar_numero(), formatar_numero()
-    else:
-        valor = formatar_numero()
-        return valor, valor
 
 def gerar_resposta_xml(peso, pesobalanca, balanca):
     """Gera a resposta XML formatada corretamente"""
@@ -108,14 +121,13 @@ def adicionar_campo(parent, field_id, value):
 
 @app.route("/consultar_peso", methods=['POST'])
 def consultar_peso_unico():
-    """Endpoint principal para consulta de peso"""
     try:
         # Obter XML da requisição
         if request.content_type == 'application/xml':
-            xml_data = request.data.decode('utf-8')
+            xml_data = request.data.decode('utf-8')  # Lê os dados XML da requisição
         else:
             xml_data = request.form.get('xml') or request.form.get('TextXML') or next(iter(request.form.values()))
-        
+
         if not xml_data:
             return gerar_erro("Nenhum dado XML encontrado na requisição")
         
@@ -133,13 +145,28 @@ def consultar_peso_unico():
             return gerar_erro("Campo TSTPESO deve ser 0 ou 1")
         
         # Gerar valores de peso
-        peso, pesobalanca = gerar_valores_peso(tstpeso)
-        ultimo_valor[balanca] = peso
+        peso, pesobalanca = gerar_valores_peso(tstpeso, balanca)
         
         # Gerar resposta
         xml_resposta = gerar_resposta_xml(peso, pesobalanca, balanca)
+        
         return Response(xml_resposta.encode('utf-16'), content_type='application/xml; charset=utf-16')
     
     except Exception as e:
         logging.error(f"Erro no processamento: {str(e)}")
         return gerar_erro(f"Erro interno: {str(e)}")
+
+def gerar_erro(mensagem):
+    """Gera uma resposta de erro em formato XML"""
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
+    
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = mensagem
+    
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    return xml_declaration + "\n" + xml_str
