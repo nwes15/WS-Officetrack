@@ -8,7 +8,7 @@ from capturar_xml import capturar_xml
 from consultar_endereco import consultar_endereco
 from validar_item import validar_item
 from resgate_xml import resgate_xml
-from consultar_peso_copy import consultar_peso_copy
+from consultar_peso_copy import consultar_peso2
 
 load_dotenv()
 
@@ -25,7 +25,7 @@ app.add_url_rule("/capturar_xml", methods=['POST'], view_func=capturar_xml)
 app.add_url_rule("/consultar_endereco", methods=['POST'], view_func=consultar_endereco)
 app.add_url_rule("/validar_item", methods=['POST'], view_func=validar_item)
 app.add_url_rule("/resgate_xml", methods=['POST'], view_func=resgate_xml)
-app.add_url_rule("/consultar_peso_copy", methods=['POST'], view_func=consultar_peso_copy)
+app.add_url_rule("/consultar_peso_copy", methods=['POST'], view_func=consultar_peso2)
 
 
 if __name__ == '__main__':
