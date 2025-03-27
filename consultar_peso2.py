@@ -56,7 +56,6 @@ def consultar_peso2():
         campos = processar_campos_peso(root)
 
         # Localizar o campo TSTPESO
-        cx2 = campos.get("CX2")
         tstpeso = campos.get("TSTPESO")
         if not tstpeso:
             return gerar_erro_xml("Campo TSTPESO não encontrado no XML.")
