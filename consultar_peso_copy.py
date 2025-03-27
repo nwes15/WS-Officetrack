@@ -6,7 +6,7 @@ from io import StringIO
 from utils.gerar_erro import gerar_erro_xml
 from utils.adicionar_campo import adicionar_campo
 
-def consultar_peso():
+def consultar_peso2():
     try:
         content_type = request.headers.get('Content-Type', "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
