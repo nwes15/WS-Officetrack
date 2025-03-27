@@ -122,10 +122,6 @@ def gerar_resposta_xml_v2(data):
     adicionar_campo(fields, "ESTADO", data.get("estado", ""))
     adicionar_campo(fields, "UF", data.get("uf", ""))
     
-    # Adiciona campos exemplo conforme solicitado
-    adicionar_campo(fields, "Test1", "ZZZ")
-    adicionar_campo(fields, "Num1", "777")
-    
     # Adicionar TableField exemplo
     table_field_id = "Table1"
     rows_data = [
