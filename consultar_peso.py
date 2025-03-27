@@ -74,10 +74,7 @@ def consultar_peso():
             peso = pesobalanca = valor_comum
 
         # Retornar o XML com os campos preenchidos
-        if cx2 == "0":
-            return gerar_resposta_xml_peso(peso, pesobalanca)
-        else:
-            return gerar_resposta_xml_peso2(peso, pesobalanca)
+        return gerar_resposta_xml_peso(peso, pesobalanca)
 
     except Exception as e:
         logging.error(f"Erro ao processar requisição: {e}")
@@ -125,44 +122,6 @@ def gerar_resposta_xml_peso(peso, pesobalanca):
     # Adiciona os campos PESO e PESOBALANCA
     adicionar_campo(fields, "PESO1", peso)
     adicionar_campo(fields, "PESOBALANCA1", pesobalanca)
-    
-    # Adicionar campos adicionais do ReturnValueV2
-    etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
-    etree.SubElement(return_value, "LongText")  # Vazio
-    etree.SubElement(return_value, "Value").text = "58"
-    
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str = xml_declaration + "\n" + xml_str
-    
-    logging.debug(f"XML de Resposta Peso: {xml_str}")  # Depuração no console
-    
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
-
-def gerar_resposta_xml_peso2(peso, pesobalanca):
-    """Gera a resposta XML com os dados de peso."""
-    # Definir namespaces
-    nsmap = {
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsd': 'http://www.w3.org/2001/XMLSchema'
-    }
-    
-    # Criar o elemento raiz com namespaces
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Adicionar seção de mensagem
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
-    
-    # Criar seção ReturnValueV2
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    fields = etree.SubElement(return_value, "Fields")
-    
-    # Adiciona os campos PESO e PESOBALANCA
-    adicionar_campo(fields, "PESO2", peso)
-    adicionar_campo(fields, "PESOBALANCA2", pesobalanca)
     
     # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
