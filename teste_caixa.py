@@ -6,7 +6,7 @@ import random
 def gerar_valores_peso(tstpeso):
     """Gera valores de peso conforme a lógica especificada"""
     def formatar_numero():
-        return str(round(random.uniform(0.5, 500), 2)).replace('.', ',')
+        return round(random.uniform(0.5, 500), 2).replace('.', ',')
 
     if tstpeso == "0":
         valor = formatar_numero()
