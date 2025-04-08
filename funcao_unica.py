@@ -8,6 +8,10 @@ from utils import gerar_erro
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+xml_logger = logging.getLogger('XML_LOGGER')
+xml_logger.setLevel(logging.DEBUG)
+
+
 ultimo_valor = {
     'balanca1': None,
     'balanca2': None
@@ -16,6 +20,9 @@ ultimo_valor = {
 def extrair_campos_xml(xml_data):
     """Extrai campos relevantes do XML de entrada"""
     try:
+        logging.debug(f"Iniciando extração de campos do XML (tamanho: {len(xml_data)} bytes)")
+        xml_logger.debug("\n=== XML RECEBIDO ===\n%s\n=== FIM XML ===", xml_data)
+
         parser = etree.XMLParser(recover=True)
         tree = etree.parse(StringIO(xml_data), parser)
         root = tree.getroot()

@@ -9,6 +9,8 @@ from validar_item import validar_item
 from resgate_xml import resgate_xml
 from consultar_peso2 import consultar_peso2
 from funcao_unica import consultar_peso_unico
+from encaxotar import encaxotar
+from teste_caixa import encaxotar_v2
 
 
 load_dotenv()
@@ -26,8 +28,10 @@ app.add_url_rule("/consultar_endereco", methods=['POST'], view_func=consultar_en
 app.add_url_rule("/validar_item", methods=['POST'], view_func=validar_item)
 app.add_url_rule("/resgate_xml", methods=['POST'], view_func=resgate_xml)
 app.add_url_rule("/consultar_peso2", methods=['POST'], view_func=consultar_peso2)
-
 app.add_url_rule("/funcao_unica", methods=['POST'], view_func=consultar_peso_unico)
+app.add_url_rule("/caixa", methods=['POST'], view_func=encaxotar)
+app.add_url_rule("/teste_caixa", methods=['POST'], view_func=encaxotar_v2)
+
 
 
 if __name__ == '__main__':
