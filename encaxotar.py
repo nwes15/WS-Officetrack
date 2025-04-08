@@ -73,7 +73,7 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
     """Gera peso e pesobalanca baseado no valor de TSTPESO."""
     # (Função mantida como estava)
     def formatar_numero():
-        return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
+        return "{:.2f}".format(random.uniform(0.5, 500)).replace('.', ',')
     logging.debug(f"Gerando peso para balanca '{balanca_id}' com TSTPESO = '{tstpeso_valor}'")
     if tstpeso_valor == "0":
         valor = formatar_numero(); return valor, valor
