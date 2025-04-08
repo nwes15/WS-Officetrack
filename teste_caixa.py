@@ -5,7 +5,7 @@ import logging # Adicionado para melhor depuração
 from io import StringIO # Necessário para ET.parse
 
 # --- Configuração Básica ---
-app = Flask(__name__)
+
 # Use INFO ou DEBUG
 logging.basicConfig(level=logging.DEBUG)
 
@@ -61,8 +61,8 @@ def set_field_value_text(fields_container, field_id, new_value):
 
 # --- Rota Principal ---
 # (Não precisa ser uma função separada se for usada apenas aqui)
-@app.route("/encaxotar_v2", methods=['POST']) # Assume que é POST para receber XML
-def encaxotar_v2_route():
+# Assume que é POST para receber XML
+def encaxotar_v2():
     logging.info(f"Recebida requisição {request.method} para /encaxotar_v2")
     if not request.data or 'xml' not in (request.content_type or '').lower():
          return gerar_erro("Requisição inválida. Content-Type deve ser XML e corpo não vazio.", 400)
@@ -190,6 +190,3 @@ def encaxotar_v2_route():
 
 
 # --- Execução ---
-if __name__ == '__main__':
-    # debug=True é útil, mas desative em produção
-    app.run(debug=True, host='0.0.0.0', port=5001)
