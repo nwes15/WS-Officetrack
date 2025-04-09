@@ -67,10 +67,6 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
   </MessageV2>
   <ReturnValueV2>
     <Fields>
-      <Field>
-        <ID></ID>
-        <Value></Value>
-    </Field>
       <TableField>
         <ID>{tabela_id_resp}</ID>
         <Rows>
@@ -104,7 +100,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
 
     logging.debug("XML de Resposta STRING TEMPLATE (UTF-16):\n%s", xml_final_string)
     # Codifica a string final para UTF-16 para a resposta
-    return Response(xml_final_string.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    return Response(xml_final_string.encode("utf-16-le"), content_type="application/xml; charset=utf-16")
 
 
 # --- Rota Principal ---
