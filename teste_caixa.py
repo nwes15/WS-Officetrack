@@ -66,11 +66,11 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
     <Text>Consulta realizada com sucesso.</Text>
   </MessageV2>
   <ReturnValueV2>
-    <Field>
-      <ID></ID>
-      <Value></Value>
-    </Field>
     <Fields>
+      <Field>
+        <ID></ID>
+        <Value></Value>
+    </Field>
       <TableField>
         <ID>{tabela_id_resp}</ID>
         <Rows>
