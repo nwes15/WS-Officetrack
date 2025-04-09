@@ -119,9 +119,10 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
 # --- Função de Resposta SIMPLIFICADA: Cria uma resposta básica ---
 def gerar_resposta_final_corrigida(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado, xml_bytes):
     """
-    Gera ResponseV2 mantendo a estrutura original do XML, apenas atualizando a linha marcada com IsCurrentRow.
+    Preserva exatamente a estrutura original do XML,
+    atualizando apenas a linha com IsCurrentRow="True"
     """
-    logging.debug(f"Gerando resposta FINAL CORRIGIDA para balanca '{balanca_id}'")
+    logging.debug(f"Gerando resposta com estrutura preservada para balanca '{balanca_id}'")
     try:
         # Parse do XML original para preservar sua estrutura
         parser = etree.XMLParser(recover=True)
@@ -141,7 +142,7 @@ def gerar_resposta_final_corrigida(peso_novo, pesobalanca_novo, balanca_id, tstp
         peso_field_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
         pesobalanca_field_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
         
-        # Obter a tabela original para duplicar sua estrutura
+        # Obter a tabela original para replicar exatamente sua estrutura
         xpath_tabela = f".//TableField[Id='{tabela_id_alvo}']"  # Id minúsculo para input
         tabela_elements = root_original.xpath(xpath_tabela)
         
@@ -152,67 +153,54 @@ def gerar_resposta_final_corrigida(peso_novo, pesobalanca_novo, balanca_id, tstp
             response_table = etree.SubElement(fields_container, "TableField")
             etree.SubElement(response_table, "ID").text = tabela_id_alvo  # ID Maiúsculo
             
-            # Criar Rows e copiar todas as linhas da tabela original
+            # Criar Rows
             response_rows = etree.SubElement(response_table, "Rows")
             
-            # Encontrar qual é a linha atual (com IsCurrentRow="True")
-            current_row_index = -1
+            # Replicar exatamente as linhas originais
             rows_original = tabela_original.xpath(".//Row")
             
-            for i, row in enumerate(rows_original):
-                is_current = row.get("IsCurrentRow") == "True"
-                if is_current:
-                    current_row_index = i
-                    break
-            
-            # Se não encontrou nenhuma linha marcada como atual, use a primeira linha
-            if current_row_index == -1 and rows_original:
-                current_row_index = 0
-            
-            # Recriar todas as linhas, atualizando apenas a linha marcada como atual
-            for i, row_original in enumerate(rows_original):
-                # Copiar todos os atributos da linha original
-                row_attrs = dict(row_original.attrib)
-                response_row = etree.SubElement(response_rows, "Row", **row_attrs)
+            for row_original in rows_original:
+                is_current = row_original.get("IsCurrentRow") == "True"
                 
-                # Adicionar Fields dentro da Row
+                # Copiar todos os atributos da linha original
+                attrs = dict(row_original.attrib)
+                response_row = etree.SubElement(response_rows, "Row", **attrs)
+                
+                # Adicionar Fields
                 row_fields = etree.SubElement(response_row, "Fields")
                 
-                # Se esta é a linha atual, atualizar com os novos valores
-                if i == current_row_index:
+                # Se esta é a linha marcada com IsCurrentRow="True", atualizar campos
+                if is_current:
                     # Adicionar os campos atualizados
                     adicionar_campo_com_ID_resposta(row_fields, tstpeso_id, tstpeso_valor_usado)
                     adicionar_campo_com_ID_resposta(row_fields, peso_field_id, peso_novo)
                     adicionar_campo_com_ID_resposta(row_fields, pesobalanca_field_id, pesobalanca_novo)
                     
-                    # Manter outros campos originais, se existirem
+                    # Preservar outros campos originais que não são os 3 que atualizamos
                     for field_original in row_original.xpath(".//Field"):
                         field_id_elem = field_original.find("Id")
                         if field_id_elem is not None:
                             field_id = field_id_elem.text
-                            # Pular campos que já foram adicionados acima
                             if field_id.upper() not in [tstpeso_id.upper(), peso_field_id.upper(), pesobalanca_field_id.upper()]:
                                 value_elem = field_original.find("Value")
-                                value = value_elem.text if value_elem is not None else ""
+                                value = value_elem.text if value_elem is not None and value_elem.text else ""
                                 adicionar_campo_com_ID_resposta(row_fields, field_id.upper(), value)
                 else:
-                    # Para as outras linhas, copiar todos os campos originais
+                    # Preservar todos os campos originais como estavam
                     for field_original in row_original.xpath(".//Field"):
                         field_id_elem = field_original.find("Id")
                         if field_id_elem is not None:
                             field_id = field_id_elem.text
                             value_elem = field_original.find("Value")
-                            value = value_elem.text if value_elem is not None else ""
+                            value = value_elem.text if value_elem is not None and value_elem.text else ""
                             adicionar_campo_com_ID_resposta(row_fields, field_id.upper(), value)
         else:
-            # Se não encontrar tabela, criar uma nova tabela com uma linha
+            # Fallback se não encontrar a tabela (caso raro)
             response_table = etree.SubElement(fields_container, "TableField")
             etree.SubElement(response_table, "ID").text = tabela_id_alvo
             response_rows = etree.SubElement(response_table, "Rows")
             response_row = etree.SubElement(response_rows, "Row", IsCurrentRow="True")
             row_fields = etree.SubElement(response_row, "Fields")
-            
-            # Adicionar os campos atualizados
             adicionar_campo_com_ID_resposta(row_fields, tstpeso_id, tstpeso_valor_usado)
             adicionar_campo_com_ID_resposta(row_fields, peso_field_id, peso_novo)
             adicionar_campo_com_ID_resposta(row_fields, pesobalanca_field_id, pesobalanca_novo)
@@ -226,7 +214,7 @@ def gerar_resposta_final_corrigida(peso_novo, pesobalanca_novo, balanca_id, tstp
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
         xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
         xml_str_final = xml_declaration + xml_body
-        logging.debug("XML de Resposta FINAL CORRIGIDO (UTF-16):\n%s", xml_str_final)
+        logging.debug("XML de Resposta com Estrutura Preservada (UTF-16, resumo):\n%s", xml_str_final[:500])
         return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
     
     except Exception as e:
@@ -264,7 +252,8 @@ def encaxotar_v2():
     try:
         # 2. Obter parâmetro 'balanca'
         balanca = request.args.get('balanca', 'balanca1').lower()
-        if balanca not in ["balanca1", "balanca2"]: return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+        if balanca not in ["balanca1", "balanca2"]: 
+            return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido.", "Erro Param", 400)
 
         # 3. Extrair TSTPESO e a Linha Alvo (usando a v2)
         tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
@@ -281,10 +270,11 @@ def encaxotar_v2():
         # 4. Gerar Novos Pesos
         peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
 
-        # 5. Gerar Resposta XML Final Corrigida (preservando estrutura original)
-        logging.debug(f"Chamando gerar_resposta_final_corrigida(...)")
+        # 5. Gerar Resposta XML Final PRESERVANDO ESTRUTURA ORIGINAL
+        logging.debug(f"Chamando gerar_resposta_final_corrigida com preservação de estrutura...")
         return gerar_resposta_final_corrigida(
-            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_extraido, xml_data_bytes
+            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, 
+            tstpeso_valor_extraido, xml_data_bytes
         )
 
     except Exception as e:
