@@ -70,7 +70,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
       <TableField>
         <ID>{tabela_id_resp}</ID>
         <Rows>
-          <Row IsCurrentRow="False">
+          <Row IsCurrentRow="True">
             <Fields>
               <Field>
                 <ID>{tstpeso_id_resp}</ID>
@@ -83,6 +83,22 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
               <Field>
                 <ID>{pesobalanca_id_resp}</ID>
                 <Value>{pesobalanca_novo}</Value>
+              </Field>
+            </Fields>
+          </Row>
+          <Row>
+            <Fields>
+              <Field>
+                <ID></ID>
+                <Value></Value>
+              </Field>
+              <Field>
+                <ID></ID>
+                <Value></Value>
+              </Field>
+              <Field>
+                <ID></ID>
+                <Value></Value>
               </Field>
             </Fields>
           </Row>
