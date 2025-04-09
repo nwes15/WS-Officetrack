@@ -51,11 +51,23 @@ def extrair_campo_nivel_superior(xml_bytes, field_id_alvo):
         return None
 
 def gerar_valores_peso(tstpeso_valor, balanca_id):
-    # (Mantida)
-    def formatar_numero(): return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
-    if tstpeso_valor == "0": valor = formatar_numero(); return valor, valor
-    else: peso = formatar_numero(); pesobalanca = formatar_numero(); 
-    while peso == pesobalanca: pesobalanca = formatar_numero(); return peso, pesobalanca
+    """Gera peso e pesobalanca (formato string com vírgula)."""
+    def formatar_numero():
+        return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
+    logging.debug(f"Gerando peso para balanca '{balanca_id}' com TSTPESO = '{tstpeso_valor}'")
+    if tstpeso_valor == "0":
+        valor = formatar_numero()
+        logging.debug(f"  -> Peso/Balanca (TST=0): {valor}")
+        return valor, valor # Retorna tupla
+    else: # Assume 1 ou fallback
+        peso = formatar_numero()
+        pesobalanca = formatar_numero()
+        while peso == pesobalanca:
+            logging.debug("  -> Valores gerados eram iguais, regerando pesobalanca...") # Log adicional
+            pesobalanca = formatar_numero()
+        logging.debug(f"  -> Peso (TST=1): {peso}, Balanca: {pesobalanca}")
+        # *** ADICIONAR ESTA LINHA ***
+        return peso, pesobalanca # Retorna a tupla com os valores diferentes
 
 # --- Função de Resposta com STRING TEMPLATE (Mantida) ---
 def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
