@@ -6,12 +6,14 @@ import random
 import logging
 from io import BytesIO
 
-
+# --- Configuração Básica ---
+app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 # --- Funções Auxiliares ---
-# (gerar_erro_xml_adaptado, adicionar_campo_com_ID_resposta, extrair_tstpeso_da_tabela, gerar_valores_peso - MANTIDAS)
-def gerar_erro_xml_adaptado(mensagem, short_text="Erro", status_code=400):
+
+def gerar_erro_xml(mensagem, short_text="Erro", status_code=400):
+    """Gera um XML de erro no formato ResponseV2 (UTF-16)."""
     logging.error(f"Gerando erro: {mensagem}")
     nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance','xsd': 'http://www.w3.org/2001/XMLSchema'}
     response = etree.Element("ResponseV2", nsmap=nsmap); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = mensagem
@@ -20,89 +22,120 @@ def gerar_erro_xml_adaptado(mensagem, short_text="Erro", status_code=400):
     return Response(xml_str_final.encode("utf-16"), status=status_code, content_type="application/xml; charset=utf-16")
 
 def adicionar_campo_com_ID_resposta(parent_element, field_id, value):
+    """Cria e adiciona <Field><ID>...</ID><Value>...</Value></Field> (ID maiúsculo)."""
     field = etree.SubElement(parent_element, "Field"); etree.SubElement(field, "ID").text = field_id; etree.SubElement(field, "Value").text = value if value is not None else ""
 
 def extrair_tstpeso_da_tabela(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
+    """Extrai TSTPESO da linha relevante (Current ou Primeira)."""
+    # (Mantida como antes - retorna '0' ou '1')
     if not xml_bytes: return "0"
     try:
         parser = etree.XMLParser(recover=True); tree = etree.parse(BytesIO(xml_bytes), parser); root = tree.getroot()
-        xpath_tabela = f".//TableField[Id='{tabela_id_alvo}']"; tabela_elements = root.xpath(xpath_tabela)
-        if not tabela_elements: return "0"
+        xpath_tabela = f".//TableField[Id='{tabela_id_alvo}']"; tabela_elements = root.xpath(xpath_tabela) # Id minúsculo
+        if not tabela_elements: logging.warning(f"Tabela {tabela_id_alvo} não encontrada"); return "0"
         tabela_element = tabela_elements[0]; linha_alvo = None
         current_rows = tabela_element.xpath(".//Row[@IsCurrentRow='True']")
-        if current_rows: linha_alvo = current_rows[0]
+        if current_rows: linha_alvo = current_rows[0]; logging.info("Usando CurrentRow para TSTPESO")
         else:
             primeira_linha_list = tabela_element.xpath(".//Row[1]")
-            if primeira_linha_list: linha_alvo = primeira_linha_list[0]
+            if primeira_linha_list: linha_alvo = primeira_linha_list[0]; logging.info("Usando Primeira Linha para TSTPESO")
+            else: logging.warning(f"Nenhuma linha em {tabela_id_alvo}"); return "0"
         if linha_alvo is None: return "0"
-        xpath_tstpeso = f".//Field[Id='{tstpeso_id_alvo}']/Value"; tstpeso_elements = linha_alvo.xpath(xpath_tstpeso)
+        xpath_tstpeso = f".//Field[Id='{tstpeso_id_alvo}']/Value"; tstpeso_elements = linha_alvo.xpath(xpath_tstpeso) # Id minúsculo
         if tstpeso_elements:
             value_text = tstpeso_elements[0].text
             if value_text is not None: value_text = value_text.strip(); return value_text if value_text in ["0", "1"] else "0"
+        logging.warning(f"TSTPESO '{tstpeso_id_alvo}' não encontrado/inválido. Usando '0'.")
         return "0"
     except Exception: logging.exception("Erro ao extrair TSTPESO"); return "0"
 
 def gerar_valores_peso(tstpeso_valor, balanca_id):
+    """Gera peso e pesobalanca."""
+    # (Mantida)
     def formatar_numero(): return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
     if tstpeso_valor == "0": valor = formatar_numero(); return valor, valor
     else: peso = formatar_numero(); pesobalanca = formatar_numero(); 
     while peso == pesobalanca: pesobalanca = formatar_numero(); return peso, pesobalanca
 
-# --- Função de Resposta AJUSTADA para Padrão Officetrack ---
-def gerar_resposta_final_corrigida(xml_bytes_original, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id_usado, tstpeso_valor_usado):
-    logging.debug(f"Gerando resposta FINAL CORRIGIDA (Padrão OT v2) para balanca '{balanca_id}'")
-    if not xml_bytes_original: return gerar_erro_xml_adaptado("Erro interno: XML original não fornecido.")
+# --- Função de Resposta FINAL (Implementa Requisitos Exatos) ---
+def gerar_resposta_officetrack_padrao(xml_bytes_original, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id_usado, tstpeso_valor_usado):
+    """
+    Gera ResponseV2 no padrão Officetrack:
+    - Inclui campos de nível superior do original.
+    - Inclui TableField alvo com linhas ATÉ a IsCurrentRow.
+    - Linhas anteriores são copiadas integralmente (ID ajustado).
+    - Linha IsCurrentRow contém APENAS 3 campos essenciais atualizados.
+    - Linhas posteriores são OMITIDAS.
+    - Não inclui IsCurrentRow na resposta.
+    - Usa ID maiúsculo na resposta.
+    """
+    logging.debug(f"Gerando resposta PADRÃO OFFICETRACK para balanca '{balanca_id}'")
+    if not xml_bytes_original: return gerar_erro_xml("Erro interno: XML original não fornecido.")
 
     try:
         parser = etree.XMLParser(recover=True)
         tree = etree.parse(BytesIO(xml_bytes_original), parser)
         root_original = tree.getroot()
 
+        # --- Cria a estrutura da resposta ---
         nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
         response = etree.Element("ResponseV2", nsmap=nsmap)
         message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
         return_value = etree.SubElement(response, "ReturnValueV2"); response_fields_container = etree.SubElement(return_value, "Fields")
 
+        # --- Identificadores ---
         tabela_id_alvo = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
         peso_field_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
         pesobalanca_field_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
+        # tstpeso_id_usado é 'TSTPESO1' ou 'TSTPESO2'
 
-        # 1. Copia Campos de Nível Superior (PARECE OK)
-        main_fields_original = root_original.find("./Fields")
+        # --- 1. Copia Campos de Nível Superior ---
+        # Busca por <Fields> direto sob a raiz ou dentro de <Form> para flexibilidade
+        main_fields_original = root_original.find("./Fields") or root_original.find(".//Form/Fields")
         if main_fields_original is not None:
-            # ... (código de cópia mantido) ...
+            logging.debug("Copiando campos de nível superior para a resposta...")
+            # Copia apenas os <Field> filhos diretos
             for field_original in main_fields_original.xpath("./Field"):
-                 original_id = field_original.findtext("Id"); original_value = field_original.findtext("Value", default="")
-                 if original_id: adicionar_campo_com_ID_resposta(response_fields_container, original_id.upper(), original_value)
+                original_id_elem = field_original.find("Id") # Busca por Id minúsculo no input
+                if original_id_elem is not None and original_id_elem.text:
+                    original_id = original_id_elem.text.strip()
+                    original_value = field_original.findtext("Value", default="")
+                    # Adiciona à resposta com ID Maiúsculo
+                    adicionar_campo_com_ID_resposta(response_fields_container, original_id.upper(), original_value)
+                    logging.debug(f"  Campo Nível Sup. Copiado: ID={original_id.upper()}, Value='{original_value}'")
+        else:
+            logging.warning("Container <Fields> principal não encontrado no XML original.")
 
-        # 2. Processa a TableField Alvo
-        xpath_tabela = f".//TableField[Id='{tabela_id_alvo}']"
+        # --- 2. Processa e Adiciona a TableField Alvo ---
+        xpath_tabela = f".//TableField[Id='{tabela_id_alvo}']" # Id minúsculo input
         tabela_elements = root_original.xpath(xpath_tabela)
 
         if not tabela_elements:
-            logging.warning(f"Tabela '{tabela_id_alvo}' não encontrada.") # Não adiciona a tabela
+            logging.warning(f"Tabela '{tabela_id_alvo}' não encontrada para adicionar à resposta.")
         else:
             tabela_element_original = tabela_elements[0]
+            logging.debug(f"Processando tabela '{tabela_id_alvo}' para resposta...")
+
+            # Cria a TableField na resposta
             response_table = etree.SubElement(response_fields_container, "TableField")
-            etree.SubElement(response_table, "ID").text = tabela_id_alvo # ID Maiúsculo output
+            etree.SubElement(response_table, "ID").text = tabela_id_alvo # ID Maiúsculo resposta
             response_rows_container = etree.SubElement(response_table, "Rows")
 
-            logging.debug(f"Processando linhas da tabela '{tabela_id_alvo}' para resposta...")
             # Itera pelas linhas ORIGINAIS
             for row_original in tabela_element_original.xpath(".//Row"):
                 is_current = row_original.get("IsCurrentRow", "").lower() == 'true'
-                response_row = etree.SubElement(response_rows_container, "Row")
+                response_row = etree.SubElement(response_rows_container, "Row") # SEM IsCurrentRow
                 response_row_fields = etree.SubElement(response_row, "Fields")
-                original_fields_container = row_original.find(".//Fields") # Encontra <Fields> dentro da linha original
+                original_fields_container = row_original.find(".//Fields")
 
-                # *** PONTO CRÍTICO ***
                 if original_fields_container is None:
-                     logging.warning("Linha original sem container <Fields>, linha na resposta ficará vazia.")
-                     if is_current: # Se a linha atual não tem <Fields>, não podemos adicionar os 3 essenciais
-                          logging.error("Linha IsCurrentRow não tem <Fields>! Impossível adicionar campos atualizados.")
-                          break # Para aqui mesmo assim
+                     logging.warning("Linha original sem <Fields>, linha na resposta ficará vazia.")
+                     # Se esta linha vazia for a 'current', precisamos parar aqui de qualquer forma
+                     if is_current:
+                          logging.error("Linha IsCurrentRow não tem <Fields>! Interrompendo.")
+                          break
                      else:
-                          continue # Pula para a próxima linha original se a anterior era inválida
+                          continue # Pula para a próxima linha original
 
                 if is_current:
                     # LINHA ATUAL: Adiciona apenas 3 campos com valores ATUALIZADOS
@@ -110,44 +143,41 @@ def gerar_resposta_final_corrigida(xml_bytes_original, peso_novo, pesobalanca_no
                     adicionar_campo_com_ID_resposta(response_row_fields, tstpeso_id_usado, tstpeso_valor_usado)
                     adicionar_campo_com_ID_resposta(response_row_fields, peso_field_id, peso_novo)
                     adicionar_campo_com_ID_resposta(response_row_fields, pesobalanca_field_id, pesobalanca_novo)
+                    logging.info("Linha IsCurrentRow processada e adicionada. Interrompendo loop de linhas.")
                     break # PARA após processar a linha atual
                 else:
                     # LINHA ANTERIOR: Copia TODOS os campos originais (ajustando ID)
                     logging.debug("Copiando TODOS os campos da linha anterior.")
-                    # *** PONTO DE POSSÍVEL ERRO/INEFICIÊNCIA ***
-                    # Usar ./Field para buscar apenas filhos diretos de original_fields_container é mais seguro
-                    for field_original in original_fields_container.xpath("./Field"):
-                        original_id = field_original.findtext("Id") # Id minúsculo input
-                        original_value = field_original.findtext("Value", default="")
-                        if original_id:
+                    for field_original in original_fields_container.xpath("./Field"): # Filhos diretos
+                        original_id_elem = field_original.find("Id") # Id minúsculo input
+                        if original_id_elem is not None and original_id_elem.text:
+                            original_id = original_id_elem.text.strip()
+                            original_value = field_original.findtext("Value", default="")
                             # Adiciona campo à resposta com ID Maiúsculo
                             adicionar_campo_com_ID_resposta(response_row_fields, original_id.upper(), original_value)
                         else:
                              logging.warning("Campo sem 'Id' encontrado na linha anterior, ignorando.")
 
-
             logging.debug(f"Tabela '{tabela_id_alvo}' adicionada à resposta com linhas ATÉ a atual.")
 
-        # Partes estáticas (PARECE OK)
+        # Partes estáticas
         etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
         etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "58"
 
-        # Serialização (PARECE OK)
+        # Serialização
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'; xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16"); xml_str_final = xml_declaration + xml_body
-        logging.debug("XML de Resposta FINALÍSSIMO (Padrão OT - UTF-16):\n%s", xml_str_final)
+        logging.debug("XML de Resposta PADRÃO OT (UTF-16):\n%s", xml_str_final)
         return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
     except Exception as e:
-        logging.exception("Erro fatal ao gerar resposta finalíssima")
-        return gerar_erro_xml_adaptado(f"Erro interno ao gerar resposta: {str(e)}", "Erro Servidor", 500)
+        logging.exception("Erro fatal ao gerar resposta padrão OT")
+        return gerar_erro_xml(f"Erro interno ao gerar resposta: {str(e)}", "Erro Servidor", 500)
 
 
-# --- Rota Principal ---
-# Use a URL que o cliente chama! Ex: /teste_caixa
 
 def encaixotar_v2():
-    # ... (lógica de obter XML e balanca mantida) ...
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
+    # 1. Obtenção Robusta do XML (mantida)
     content_type = request.headers.get("Content-Type", "").lower(); xml_data_str = None; xml_data_bytes = None
     if 'form' in content_type.lower() and request.form:
         for name in ["TextXML", "textxml", "XMLData", "xmldata", "xml"]:
@@ -158,26 +188,29 @@ def encaixotar_v2():
         try: xml_data_bytes = request.data; xml_data_str = xml_data_bytes.decode('utf-8'); logging.info("XML obtido de request.data (UTF-8).")
         except UnicodeDecodeError:
              try: xml_data_str = request.data.decode('latin-1'); xml_data_bytes = request.data; logging.info("XML obtido de request.data (Latin-1).")
-             except UnicodeDecodeError: return gerar_erro_xml_adaptado("Encoding inválido.", "Erro Encoding", 400)
+             except UnicodeDecodeError: return gerar_erro_xml("Encoding inválido.", "Erro Encoding", 400)
     if not xml_data_bytes and xml_data_str:
         try: xml_data_bytes = xml_data_str.encode('utf-8')
-        except Exception as e: return gerar_erro_xml_adaptado(f"Erro codificando form data: {e}", "Erro Encoding", 500)
-    if not xml_data_bytes: return gerar_erro_xml_adaptado("XML não encontrado.", "Erro Input", 400)
+        except Exception as e: return gerar_erro_xml(f"Erro codificando form data: {e}", "Erro Encoding", 500)
+    if not xml_data_bytes: return gerar_erro_xml("XML não encontrado.", "Erro Input", 400)
     logging.debug("XML Data (início):\n%s", xml_data_str[:500] if xml_data_str else "N/A")
 
     try:
+        # 2. Obter parâmetro 'balanca'
         balanca = request.args.get('balanca', 'balanca1').lower()
-        if balanca not in ["balanca1", "balanca2"]: return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+        if balanca not in ["balanca1", "balanca2"]: return gerar_erro_xml("Parâmetro 'balanca' inválido.", "Erro Param", 400)
 
+        # 3. Extrair TSTPESO (da linha 'atual')
         tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
         tabela_id_a_usar = "TABCAIXA1" if balanca == "balanca1" else "TABCAIXA2"
         tstpeso_valor_extraido = extrair_tstpeso_da_tabela(xml_data_bytes, tabela_id_a_usar, tstpeso_id_a_usar)
-        logging.info(f"TSTPESO extraído: '{tstpeso_valor_extraido}'") # Importante verificar este log
+        logging.info(f"TSTPESO extraído da linha 'atual': '{tstpeso_valor_extraido}'")
 
+        # 4. Gerar Novos Pesos
         peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
 
-        # Chama a função de resposta corrigida
-        return gerar_resposta_final_corrigida(
+        # 5. Gerar Resposta XML no Padrão Officetrack
+        return gerar_resposta_officetrack_padrao( # Chama a função CORRIGIDA
             xml_bytes_original=xml_data_bytes,
             peso_novo=peso_novo,
             pesobalanca_novo=pesobalanca_novo,
@@ -185,6 +218,8 @@ def encaixotar_v2():
             tstpeso_id_usado=tstpeso_id_a_usar,
             tstpeso_valor_usado=tstpeso_valor_extraido
         )
+
     except Exception as e:
+        # Log do traceback completo para erros inesperados
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
-        return gerar_erro_xml_adaptado(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
+        return gerar_erro_xml(f"Erro interno inesperado no servidor: {str(e)}", "Erro Servidor", 500)
