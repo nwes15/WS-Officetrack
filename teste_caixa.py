@@ -1,12 +1,11 @@
 from flask import Flask, request, Response
-from utils import gerar_erro_xml
+from utils.gerar_erro import gerar_erro_xml
 from lxml import etree # Ainda usamos para PARSE do input
 import random
 import logging
 from io import BytesIO
 
-# --- Configuração Básica ---
-app = Flask(__name__)
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 # --- Funções Auxiliares ---
