@@ -124,7 +124,8 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
     def formatar_numero(): return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
     logging.debug(f"Gerando peso para balanca '{balanca_id}' com TSTPESO = '{tstpeso_valor}'")
     if tstpeso_valor == "0": valor = formatar_numero(); return valor, valor
-    else: peso = formatar_numero(); pesobalanca = formatar_numero(); while peso == pesobalanca: pesobalanca = formatar_numero(); return peso, pesobalanca
+    else: peso = formatar_numero(); pesobalanca = formatar_numero(); 
+    while peso == pesobalanca: pesobalanca = formatar_numero(); return peso, pesobalanca
 
 # --- Função de Resposta: Usa a Linha Alvo ---
 def gerar_resposta_com_linha_alvo(linha_alvo_dict, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id):
