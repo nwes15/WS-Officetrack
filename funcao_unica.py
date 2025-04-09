@@ -135,9 +135,15 @@ def consultar_peso_unico():
         if not campos:
             return gerar_erro("Não foi possível extrair campos do XML")
 
-        tstpeso = campos.get("TSTPESO", "0")
-        if tstpeso not in ["0", "1"]:
-            return gerar_erro("Campo TSTPESO deve ser 0 ou 1")
+        if balanca == "balanca1":
+            tstpeso = campos.get("TSTPESO1", "0")
+            if tstpeso not in ["0", "1"]:
+                return gerar_erro("Campo TSTPESO deve ser 0 ou 1")
+        
+        else:
+            tstpeso = campos.get("TSTPESO2", "0")
+            if tstpeso not in ["0", "1"]:
+                return gerar_erro("Campo TSTPESO deve ser 0 ou 1")
 
         peso, pesobalanca = gerar_valores_peso(tstpeso, balanca)
         ultimo_valor[balanca] = peso
