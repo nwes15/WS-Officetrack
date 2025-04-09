@@ -45,62 +45,59 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
     while peso == pesobalanca: pesobalanca = formatar_numero(); return peso, pesobalanca
 
 # --- Função de Resposta com STRING TEMPLATE ---
-def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
-    """
-    Gera ResponseV2 usando string formatada, contendo APENAS
-    a TableField relevante com uma única Row e 3 campos essenciais. UTF-16.
-    """
-    logging.debug(f"Gerando resposta STRING TEMPLATE para balanca '{balanca_id}'")
+def gerar_resposta_com_linha_atuais(xml_bytes, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
+    try:
+        parser = etree.XMLParser(recover=True)
+        tree = etree.parse(BytesIO(xml_bytes), parser)
+        root = tree.getroot()
 
-    # Determina IDs
-    tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
-    peso_id_resp = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
-    pesobalanca_id_resp = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
-    tstpeso_id_resp = tstpeso_id # Já é TSTPESO1 ou TSTPESO2
+        # Qual tabela usar
+        tabela_id = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
+        peso_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
+        pesobalanca_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
 
-    # Monta o template XML usando f-string
-    # Atenção à indentação e aos IDs maiúsculos na resposta
-    xml_template = f"""<?xml version="1.0" encoding="utf-16"?>
-<ResponseV2 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <MessageV2>
-    <Text>Consulta realizada com sucesso.</Text>
-  </MessageV2>
-  <ReturnValueV2>
-    <Fields>
-      <TableField>
-        <ID>{tabela_id_resp}</ID>
-        <Rows>
-          <Row IsCurrentRow="True">
-            <Fields>
-              <Field>
-                <ID>{tstpeso_id_resp}</ID>
-                <Value>{tstpeso_valor_usado}</Value>
-              </Field>
-              <Field>
-                <ID>{peso_id_resp}</ID>
-                <Value>{peso_novo}</Value>
-              </Field>
-              <Field>
-                <ID>{pesobalanca_id_resp}</ID>
-                <Value>{pesobalanca_novo}</Value>
-              </Field>
-            </Fields>
-          </Row>
-        </Rows>
-      </TableField>
-    </Fields>
-    <ShortText>Pressione Lixeira para nova consulta</ShortText>
-    <LongText/>
-    <Value>58</Value>
-  </ReturnValueV2>
-</ResponseV2>"""
+        # Localiza a tabela
+        tabela_element = root.xpath(f".//TableField[Id='{tabela_id}']")[0]
+        rows_element = tabela_element.find(".//Rows")
 
+        encontrou = False
+        nova_lista_rows = []
 
-    xml_final_string = xml_template # Manter indentação original por enquanto
+        for row in rows_element.findall(".//Row"):
+            nova_lista_rows.append(row)
+            if row.attrib.get("IsCurrentRow") == "True":
+                encontrou = True
 
-    logging.debug("XML de Resposta STRING TEMPLATE (UTF-16):\n%s", xml_final_string)
-    # Codifica a string final para UTF-16 para a resposta
-    return Response(xml_final_string.encode("utf-16le"), content_type="application/xml; charset=utf-16")
+                # Atualiza campos dentro da linha atual
+                for field in row.findall(".//Field"):
+                    field_id = field.findtext("ID")
+                    valor = field.find("Value")
+
+                    if field_id == tstpeso_id:
+                        valor.text = tstpeso_valor_usado
+                    elif field_id == peso_id:
+                        valor.text = peso_novo
+                    elif field_id == pesobalanca_id:
+                        valor.text = pesobalanca_novo
+
+                break  # Depois da linha atual, não queremos incluir mais linhas
+
+        # Substitui as linhas por apenas até a atual
+        if encontrou:
+            for r in list(rows_element):
+                rows_element.remove(r)
+            for r in nova_lista_rows:
+                rows_element.append(r)
+
+        # Monta a resposta
+        xml_declaracao = '<?xml version="1.0" encoding="utf-16"?>\n'
+        xml_body = etree.tostring(root, encoding="utf-16", xml_declaration=False).decode("utf-16")
+        return Response((xml_declaracao + xml_body).encode("utf-16"), content_type="application/xml; charset=utf-16")
+
+    except Exception:
+        logging.exception("Erro ao gerar resposta com linha atual")
+        return gerar_erro_xml("Erro ao montar resposta final.", "Erro Resposta", 500)
+
 
 
 # --- Rota Principal ---
@@ -141,13 +138,14 @@ def encaixotar_v2():
         peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
 
         # 5. Gerar Resposta XML usando STRING TEMPLATE
-        return gerar_resposta_string_template( # Chama a nova função de template
-            peso_novo=peso_novo,
-            pesobalanca_novo=pesobalanca_novo,
-            balanca_id=balanca,
-            tstpeso_id=tstpeso_id_a_usar,
-            tstpeso_valor_usado=tstpeso_valor_extraido
-        )
+        return gerar_resposta_com_linha_atuais(
+    xml_bytes=xml_data_bytes,
+    peso_novo=peso_novo,
+    pesobalanca_novo=pesobalanca_novo,
+    balanca_id=balanca,
+    tstpeso_id=tstpeso_id_a_usar,
+    tstpeso_valor_usado=tstpeso_valor_extraido
+)
 
     except Exception as e:
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
