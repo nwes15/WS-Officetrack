@@ -129,8 +129,8 @@ def construir_resposta_responsev2(target_table_id, peso_id, balanca_id, peso_nov
 
 # --- Rota Principal (Usa a nova função de resposta) ---
 
-@app.route('/teste_caixa', methods=['POST'])
-def rota_teste_caixa():
+
+def encaixotar_v2():
     xml_data = request.data
     if not xml_data:
         # Usa a função de erro ResponseV2
