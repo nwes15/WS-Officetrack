@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from flask import Flask, request, Response
 from lxml import etree
@@ -7,7 +6,7 @@ import logging
 from io import BytesIO
 
 # --- Configuração Básica ---
-app = Flask(__name__)
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 # --- Funções Auxiliares ---
@@ -173,8 +172,8 @@ def gerar_resposta_com_linha_alvo(linha_alvo_dict, peso_novo, pesobalanca_novo, 
 
 
 # --- Rota Principal (Focada e Usando Novas Funções) ---
-@app.route("/balanca_simulador_focado", methods=['POST'])
-def simular_balanca_focado():
+
+def encaxotar_v2():
     logging.info(f"--- Nova Requisição {request.method} para /balanca_simulador_focado ---")
     # 1. Obtenção Robusta do XML (mantida)
     content_type = request.headers.get("Content-Type", "").lower(); xml_data_str = None; xml_data_bytes = None
@@ -225,6 +224,3 @@ def simular_balanca_focado():
         logging.exception("Erro GERAL fatal na rota /balanca_simulador_focado")
         return gerar_erro_xml(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
 
-# --- Execução ---
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
