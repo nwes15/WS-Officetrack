@@ -60,7 +60,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
     logging.debug(f"Gerando resposta STRING TEMPLATE para balanca '{balanca_id}'")
 
     # Determina IDs
-    tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
+    tabela_id_resp = "CX3TABELA" if balanca_id == "balanca1" else "TABCAIXA2"
     peso_id_resp = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
     pesobalanca_id_resp = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
     tstpeso_id_resp = tstpeso_id # Já é TSTPESO1 ou TSTPESO2
@@ -75,9 +75,9 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
   <ReturnValueV2>
     <Fields>
       <TableField>
-        <ID>{tabela_id_resp}</ID>
+        <ID>CX3TABELA</ID>
         <Rows>
-          <Row IsCurrentRow="True">
+          <Row>
             <Id>Linha 1</Id>
             <Fields>
               <Field>
