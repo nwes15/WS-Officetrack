@@ -39,10 +39,17 @@ def extrair_tstpeso_da_tabela(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
     except Exception: logging.exception("Erro ao extrair TSTPESO"); return "0"
 
 def gerar_valores_peso(tstpeso_valor, balanca_id):
-    def formatar_numero(): return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
-    if tstpeso_valor == "0": valor = formatar_numero(); return valor, valor
-    else: peso = formatar_numero(); pesobalanca = formatar_numero();
-    while peso == pesobalanca: pesobalanca = formatar_numero(); return peso, pesobalanca
+    def formatar_numero(): return "{:.2f}".format(random.uniform(0.5, 500)).replace('.', ',')
+
+    if tstpeso_valor == "0":
+        valor = formatar_numero()
+        return valor, valor
+    else:
+        peso = formatar_numero()
+        pesobalanca = formatar_numero()
+        while peso == pesobalanca:
+            pesobalanca = formatar_numero()
+        return peso, pesobalanca
 
 # --- Função de Resposta com STRING TEMPLATE ---
 def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
@@ -102,9 +109,6 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
     # Codifica a string final para UTF-16 para a resposta
     return Response(xml_final_string.encode("utf-16le"), content_type="application/xml; charset=utf-16")
 
-
-# --- Rota Principal ---
-# ** Use a URL que o cliente chama! Ex: /teste_caixa **
 
 def encaixotar_v2():
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
