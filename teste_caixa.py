@@ -5,178 +5,180 @@ import logging
 from io import BytesIO
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
+
+# --- Funções Auxiliares ---
 
 def gerar_erro_xml_adaptado(mensagem, short_text="Erro", status_code=400):
+    # (Mantida como na versão anterior)
     logging.error(f"Gerando erro: {mensagem}")
-    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = mensagem
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    etree.SubElement(return_value, "Fields")
-    etree.SubElement(return_value, "ShortText").text = short_text
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "0"
-
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str_final = xml_declaration + "\n" + xml_body
+    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance','xsd': 'http://www.w3.org/2001/XMLSchema'}
+    response = etree.Element("ResponseV2", nsmap=nsmap); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = mensagem
+    return_value = etree.SubElement(response, "ReturnValueV2"); etree.SubElement(return_value, "Fields"); etree.SubElement(return_value, "ShortText").text = short_text; etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "0"
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'; xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16"); xml_str_final = xml_declaration + xml_body
     return Response(xml_str_final.encode("utf-16"), status=status_code, content_type="application/xml; charset=utf-16")
 
-def atualizar_ou_criar_campo(linha, id_campo, valor):
-    campo = linha.xpath(f".//Field[Id='{id_campo}']")
-    if campo:
-        value_element = campo[0].find("Value")
-        if value_element is not None:
-            value_element.text = valor
-        else:
-            etree.SubElement(campo[0], "Value").text = valor
-    else:
-        fields_container = linha.find("Fields")
-        if fields_container is None:
-            fields_container = etree.SubElement(linha, "Fields")
-        field = etree.SubElement(fields_container, "Field")
-        etree.SubElement(field, "ID").text = id_campo
-        etree.SubElement(field, "Value").text = valor
+def adicionar_campo_com_ID_resposta(parent_element, field_id, value):
+    """Cria e adiciona <Field><ID>...</ID><Value>...</Value></Field> para a RESPOSTA."""
+    # Garante ID maiúsculo na resposta
+    field = etree.SubElement(parent_element, "Field")
+    etree.SubElement(field, "ID").text = field_id # ID Maiúsculo
+    etree.SubElement(field, "Value").text = value if value is not None else ""
 
-def extrair_tstpeso_da_tabela(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
+# --- Função de Extração MODIFICADA (com fallback e retorno de elemento) ---
+def extrair_linha_alvo_e_tstpeso_v2(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
+    """
+    Encontra a linha alvo (Current ou Primeira), extrai TSTPESO e retorna
+    (tstpeso_valor, elemento_linha_alvo) ou (None, None).
+    """
+    if not xml_bytes: logging.error("extrair_linha_alvo_v2 recebeu xml_bytes vazio."); return None, None
     try:
-        parser = etree.XMLParser(recover=True, encoding='utf-8')
+        logging.debug(f"--- Iniciando extrair_linha_alvo_v2 para Tabela '{tabela_id_alvo}', Campo '{tstpeso_id_alvo}' ---")
+        parser = etree.XMLParser(recover=True)
         tree = etree.parse(BytesIO(xml_bytes), parser)
         root = tree.getroot()
-        tabela_element = root.xpath(f".//TableField[Id='{tabela_id_alvo}']")
-        if not tabela_element:
-            return "0"
-        tabela_element = tabela_element[0]
-        current_row = tabela_element.xpath(".//Row[@IsCurrentRow='True']")
-        if not current_row:
-            return "0"
-        linha_alvo = current_row[0]
-        tstpeso_element = linha_alvo.xpath(f".//Field[Id='{tstpeso_id_alvo}']/Value")
-        if tstpeso_element and tstpeso_element[0].text:
-            valor = tstpeso_element[0].text.strip()
-            if valor in ["0", "1"]:
-                return valor
-        return "0"
+
+        xpath_tabela = f".//TableField[Id='{tabela_id_alvo}']" # Id minúsculo input
+        tabela_elements = root.xpath(xpath_tabela)
+        if not tabela_elements: logging.warning(f"Tabela '{tabela_id_alvo}' NÃO encontrada."); return None, None
+        tabela_element = tabela_elements[0]
+
+        linha_alvo_element = None
+        linha_alvo_info = "Nenhuma"
+        # 1. Tenta IsCurrentRow="True"
+        current_rows = tabela_element.xpath(".//Row[@IsCurrentRow='True']")
+        if current_rows: linha_alvo_element = current_rows[0]; linha_alvo_info = "IsCurrentRow='True'"
+        else: # 2. Fallback para primeira linha
+            primeira_linha_list = tabela_element.xpath(".//Row[1]")
+            if primeira_linha_list: linha_alvo_element = primeira_linha_list[0]; linha_alvo_info = "Primeira Linha"
+
+        if linha_alvo_element is None: logging.warning(f"Nenhuma linha encontrada em '{tabela_id_alvo}'."); return None, None
+        logging.info(f"Linha Alvo encontrada: {linha_alvo_info}")
+
+        # 3. Extrai o TSTPESO da linha_alvo_element
+        tstpeso_valor = "0" # Default
+        xpath_tstpeso = f".//Field[Id='{tstpeso_id_alvo}']/Value" # Id minúsculo input
+        tstpeso_elements = linha_alvo_element.xpath(xpath_tstpeso)
+        if tstpeso_elements:
+            value_text = tstpeso_elements[0].text
+            if value_text is not None:
+                value_text = value_text.strip()
+                if value_text in ["0", "1"]: tstpeso_valor = value_text
+                else: logging.warning(f"Valor TSTPESO inválido '{value_text}'. Usando '0'.")
+            else: logging.warning(f"Tag <Value> TSTPESO vazia. Usando '0'.")
+        else: logging.warning(f"Campo TSTPESO '{tstpeso_id_alvo}' não encontrado na linha. Usando '0'.")
+
+        logging.info(f"TSTPESO extraído da linha alvo: '{tstpeso_valor}'")
+        # Retorna o valor e o ELEMENTO lxml da linha alvo
+        return tstpeso_valor, linha_alvo_element
+
     except Exception as e:
-        logging.exception(f"Erro ao extrair {tstpeso_id_alvo} da tabela {tabela_id_alvo}")
-        return "0"
+        logging.exception("Erro EXCEPCIONAL ao extrair linha alvo e TSTPESO v2"); return None, None
+
 
 def gerar_valores_peso(tstpeso_valor, balanca_id):
-    def formatar_numero():
-        return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
-
+    # (Função mantida)
+    def formatar_numero(): return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
     logging.debug(f"Gerando peso para balanca '{balanca_id}' com TSTPESO = '{tstpeso_valor}'")
+    if tstpeso_valor == "0": valor = formatar_numero(); return valor, valor
+    else: peso = formatar_numero(); pesobalanca = formatar_numero(); 
+    while peso == pesobalanca: pesobalanca = formatar_numero(); return peso, pesobalanca
 
-    if tstpeso_valor == "0":
-        valor = formatar_numero()
-        return valor, valor
-    else:
-        peso = formatar_numero()
-        pesobalanca = formatar_numero()
-        while peso == pesobalanca:
-            pesobalanca = formatar_numero()
-        return peso, pesobalanca
 
-def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstpeso_valor_usado, xml_original):
-    logging.debug(f"Gerando resposta final (balanca) para balanca '{balanca_id}'")
-
-    parser = etree.XMLParser(recover=True, encoding='utf-8')
-    tree = etree.parse(BytesIO(xml_original), parser)
-    root = tree.getroot()
+# --- Função de Resposta SIMPLIFICADA: Cria a linha do zero ---
+def gerar_resposta_final_corrigida(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
+    """
+    Gera ResponseV2 com TableField mínima (1 linha, 3 campos essenciais).
+    NÃO inclui IsCurrentRow na resposta. Usa ID maiúsculo. UTF-16.
+    """
+    logging.debug(f"Gerando resposta FINAL CORRIGIDA para balanca '{balanca_id}'")
+    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
+    response = etree.Element("ResponseV2", nsmap=nsmap)
+    message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
+    return_value = etree.SubElement(response, "ReturnValueV2"); fields_container = etree.SubElement(return_value, "Fields")
 
     tabela_id_alvo = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
     peso_field_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
     pesobalanca_field_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
 
-    tabela_element = root.xpath(f".//TableField[Id='{tabela_id_alvo}']")
-    if not tabela_element:
-        return gerar_erro_xml_adaptado(f"Tabela {tabela_id_alvo} não encontrada no XML.", "Erro Tabela", 400)
+    # Cria a TableField na resposta
+    response_table = etree.SubElement(fields_container, "TableField")
+    etree.SubElement(response_table, "ID").text = tabela_id_alvo # ID Maiúsculo
 
-    linha_atual = tabela_element[0].xpath(".//Row[@IsCurrentRow='True']")
-    if not linha_atual:
-        return gerar_erro_xml_adaptado("Linha com IsCurrentRow='True' não encontrada.", "Erro Linha", 400)
+    # Cria Rows e a única Row (SEM atributos copiados)
+    response_rows = etree.SubElement(response_table, "Rows")
+    response_row = etree.SubElement(response_rows, "Row")
 
-    linha_modificada = etree.fromstring(etree.tostring(linha_atual[0]))
+    # Adiciona Fields dentro da Row
+    row_fields = etree.SubElement(response_row, "Fields")
 
-    atualizar_ou_criar_campo(linha_modificada, tstpeso_id, tstpeso_valor_usado)
-    atualizar_ou_criar_campo(linha_modificada, peso_field_id, peso)
-    atualizar_ou_criar_campo(linha_modificada, pesobalanca_field_id, pesobalanca)
+    # Adiciona os 3 campos essenciais usando a helper (ID Maiúsculo)
+    adicionar_campo_com_ID_resposta(row_fields, tstpeso_id, tstpeso_valor_usado)
+    adicionar_campo_com_ID_resposta(row_fields, peso_field_id, peso_novo)
+    adicionar_campo_com_ID_resposta(row_fields, pesobalanca_field_id, pesobalanca_novo)
 
-    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    response_fields_container = etree.SubElement(return_value, "Fields")
-
-    response_table = etree.SubElement(response_fields_container, "TableField")
-    etree.SubElement(response_table, "ID").text = tabela_id_alvo
-    response_rows_container = etree.SubElement(response_table, "Rows")
-    response_rows_container.append(linha_modificada)
-
+    # Partes estáticas
     etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "58"
+    etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "58"
 
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
+    # Serialização
+    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
     xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str_final = xml_declaration + "\n" + xml_body
-
-    logging.debug("XML de Resposta Final com linha atualizada:\n%s", xml_str_final)
+    xml_str_final = xml_declaration + xml_body
+    logging.debug("XML de Resposta FINAL CORRIGIDO (UTF-16):\n%s", xml_str_final)
     return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
 
+# --- Rota Principal (Corrigida) ---
+# Use um nome de rota claro e um nome de função Python correspondente
+
 def encaxotar_v2():
-    logging.info(f"Recebida requisição {request.method} para /balanca_simulador")
+    logging.info(f"--- Nova Requisição {request.method} para /simulador_balanca_corrigido ---")
+    # 1. Obtenção Robusta do XML
+    content_type = request.headers.get("Content-Type", "").lower(); xml_data_str = None; xml_data_bytes = None
+    if 'form' in content_type.lower() and request.form:
+        for name in ["TextXML", "textxml", "XMLData", "xmldata", "xml"]:
+            if name in request.form: xml_data_str = request.form.get(name); break
+        if not xml_data_str and request.form: first_key = next(iter(request.form)); xml_data_str = request.form.get(first_key)
+    if not xml_data_str and request.data:
+        try: xml_data_bytes = request.data; xml_data_str = xml_data_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+             try: xml_data_str = request.data.decode('latin-1'); xml_data_bytes = request.data
+             except UnicodeDecodeError: return gerar_erro_xml_adaptado("Encoding inválido.", "Erro Encoding", 400)
+    if not xml_data_bytes and xml_data_str:
+        try: xml_data_bytes = xml_data_str.encode('utf-8')
+        except Exception as e: return gerar_erro_xml_adaptado(f"Erro codificando form data: {e}", "Erro Encoding", 500)
+    if not xml_data_bytes: return gerar_erro_xml_adaptado("XML não encontrado.", "Erro Input", 400)
+    logging.debug("XML Data (início):\n%s", xml_data_str[:500] if xml_data_str else "N/A")
+
     try:
-        content_type = request.headers.get("Content-Type", "").lower()
-        xml_data_str = None
-        xml_data_bytes = None
-
-        if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
-                if possible_name in request.form:
-                    xml_data_str = request.form.get(possible_name)
-                    break
-            if not xml_data_str and len(request.form) > 0:
-                first_key = next(iter(request.form))
-                xml_data_str = request.form.get(first_key)
-
-        if not xml_data_str and request.data:
-            try:
-                xml_data_bytes = request.data
-                xml_data_str = xml_data_bytes.decode('utf-8')
-            except UnicodeDecodeError:
-                try:
-                    xml_data_str = request.data.decode('latin-1')
-                    xml_data_bytes = request.data
-                except UnicodeDecodeError:
-                    return gerar_erro_xml_adaptado("Não foi possível decodificar o corpo da requisição.", "Erro Encoding", 400)
-
-        if not xml_data_bytes and xml_data_str:
-            xml_data_bytes = xml_data_str.encode('utf-8')
-
-        if not xml_data_bytes:
-            return gerar_erro_xml_adaptado("Não foi possível encontrar dados XML na requisição.", "Erro Input", 400)
-
-        logging.debug("XML Data (início):\n%s", xml_data_str[:500] if xml_data_str else "N/A")
-
+        # 2. Obter parâmetro 'balanca'
         balanca = request.args.get('balanca', 'balanca1').lower()
-        if balanca not in ["balanca1", "balanca2"]:
-            return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido na URL.", "Erro Param", 400)
+        if balanca not in ["balanca1", "balanca2"]: return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido.", "Erro Param", 400)
 
+        # 3. Extrair TSTPESO e a Linha Alvo (usando a v2)
         tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
         tabela_id_a_usar = "TABCAIXA1" if balanca == "balanca1" else "TABCAIXA2"
-        tstpeso_valor_usado = extrair_tstpeso_da_tabela(xml_data_bytes, tabela_id_a_usar, tstpeso_id_a_usar)
+        logging.debug(f"Chamando extrair_linha_alvo_e_tstpeso_v2(tabela='{tabela_id_a_usar}', campo='{tstpeso_id_a_usar}')")
+        tstpeso_valor_extraido, _ = extrair_linha_alvo_e_tstpeso_v2(xml_data_bytes, tabela_id_a_usar, tstpeso_id_a_usar)
+        # Ignoramos o elemento da linha retornado aqui, pois a função de resposta não precisa mais dele
 
-        peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_usado, balanca)
+        # Verifica se a extração falhou (embora a função já retorne '0' como default)
+        if tstpeso_valor_extraido is None: # Checagem extra de segurança
+             return gerar_erro_xml_adaptado("Falha ao processar linha/TSTPESO no XML.", "Erro XML Proc")
 
-        return gerar_resposta_balanca_final(
-            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_usado, xml_data_bytes
+        logging.info(f"TSTPESO extraído da linha alvo: '{tstpeso_valor_extraido}'")
+
+        # 4. Gerar Novos Pesos
+        peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
+
+        # 5. Gerar Resposta XML Final Corrigida (simples, sem clonar/modificar)
+        logging.debug(f"Chamando gerar_resposta_final_corrigida(...)")
+        return gerar_resposta_final_corrigida(
+            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_extraido
         )
 
     except Exception as e:
-        logging.exception("Erro fatal na rota /balanca_simulador")
-        return gerar_erro_xml_adaptado(f"Erro interno inesperado no servidor: {str(e)}", "Erro Servidor", 500)
+        logging.exception("Erro GERAL fatal na rota /simulador_balanca_corrigido")
+        return gerar_erro_xml_adaptado(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
+
