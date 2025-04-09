@@ -42,17 +42,36 @@ def extrair_campos_xml(xml_data):
 def gerar_valores_peso(tstpeso, balanca):
     """Gera valores de peso conforme a lógica especificada"""
     def formatar_numero():
-        return str(round(random.uniform(0.5, 500), 2)).replace('.', ',')
+        # Usar 3 casas decimais para diminuir chance de colisão
+        return "{:.2f}".format(random.uniform(0.5, 500.0)).replace('.', ',')
+
+    # Adiciona logging para clareza
+    logging.debug(f"Gerando peso para balanca '{balanca}' com TSTPESO = '{tstpeso}'")
 
     if tstpeso == "0":
-        # Para TSTPESO = 0, peso e pesobalanca devem ser iguais
         valor = formatar_numero()
+        logging.debug(f"  -> Peso/Balanca (TST=0): {valor}")
         return valor, valor
-    else:
-        # Para TSTPESO = 1, valores devem ser diferentes
+    elif tstpeso == "1": # Ser explícito
         peso = formatar_numero()
         pesobalanca = formatar_numero()
-        return peso, pesobalanca
+        # *** ADICIONAR O LOOP WHILE ***
+        retry_count = 0
+        max_retries = 10 # Segurança
+        while peso == pesobalanca and retry_count < max_retries:
+            logging.debug("  -> Valores gerados eram iguais, regerando pesobalanca...")
+            pesobalanca = formatar_numero()
+            retry_count += 1
+        # *****************************
+        if peso == pesobalanca: # Log se ainda forem iguais
+            logging.warning("Não foi possível gerar pesos diferentes após várias tentativas!")
+        logging.debug(f"  -> Peso (TST=1): {peso}, Balanca: {pesobalanca}")
+        return peso, pesobalanca # Agora retorna valores possivelmente diferentes
+    else:
+        # Fallback para TSTPESO inválido
+        logging.warning(f"TSTPESO inválido: '{tstpeso}'. Gerando como TST=0.")
+        valor = formatar_numero()
+        return valor, valor
 
 def gerar_resposta_xml(peso, pesobalanca, balanca, tstpeso):
     """Gera a resposta XML formatada corretamente"""
