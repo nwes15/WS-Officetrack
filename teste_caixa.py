@@ -70,8 +70,43 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
             pesobalanca = formatar_numero()
         return peso, pesobalanca
 
-def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstpeso_valor_usado, linha_original=None):
+def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstpeso_valor_usado, xml_original):
     logging.debug(f"Gerando resposta final (balanca) para balanca '{balanca_id}'")
+
+    # Parse o XML original
+    parser = etree.XMLParser(recover=True, encoding='utf-8')
+    tree = etree.parse(BytesIO(xml_original), parser)
+    root = tree.getroot()
+
+    tabela_id_alvo = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
+    peso_field_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
+    pesobalanca_field_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
+
+    tabela_element = root.xpath(f".//TableField[Id='{tabela_id_alvo}']")
+    if not tabela_element:
+        return gerar_erro_xml_adaptado(f"Tabela {tabela_id_alvo} não encontrada no XML.", "Erro Tabela", 400)
+
+    linha_atual = tabela_element[0].xpath(".//Row[@IsCurrentRow='True']")
+    if not linha_atual:
+        return gerar_erro_xml_adaptado("Linha com IsCurrentRow='True' não encontrada.", "Erro Linha", 400)
+
+    linha_modificada = etree.fromstring(etree.tostring(linha_atual[0]))
+
+    # Atualizar os campos de peso
+    def atualizar_ou_criar_campo(linha, id_campo, valor):
+        campo = linha.xpath(f".//Field[Id='{id_campo}']")
+        if campo:
+            campo[0].find("Value").text = valor
+        else:
+            field = etree.SubElement(linha.find("Fields"), "Field")
+            etree.SubElement(field, "ID").text = id_campo
+            etree.SubElement(field, "Value").text = valor
+
+    atualizar_ou_criar_campo(linha_modificada, tstpeso_id, tstpeso_valor_usado)
+    atualizar_ou_criar_campo(linha_modificada, peso_field_id, peso)
+    atualizar_ou_criar_campo(linha_modificada, pesobalanca_field_id, pesobalanca)
+
+    # Construir o XML de resposta
     nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
     response = etree.Element("ResponseV2", nsmap=nsmap)
     message = etree.SubElement(response, "MessageV2")
@@ -79,19 +114,10 @@ def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstp
     return_value = etree.SubElement(response, "ReturnValueV2")
     response_fields_container = etree.SubElement(return_value, "Fields")
 
-    tabela_id_alvo = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
-    peso_field_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
-    pesobalanca_field_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
-
     response_table = etree.SubElement(response_fields_container, "TableField")
     etree.SubElement(response_table, "ID").text = tabela_id_alvo
     response_rows_container = etree.SubElement(response_table, "Rows")
-    response_row = etree.SubElement(response_rows_container, "Row", IsCurrentRow="True")
-    response_row_fields_container = etree.SubElement(response_row, "Fields")
-
-    adicionar_campo_com_ID(response_row_fields_container, tstpeso_id, tstpeso_valor_usado)
-    adicionar_campo_com_ID(response_row_fields_container, peso_field_id, peso)
-    adicionar_campo_com_ID(response_row_fields_container, pesobalanca_field_id, pesobalanca)
+    response_rows_container.append(linha_modificada)
 
     etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
     etree.SubElement(return_value, "LongText")
@@ -101,7 +127,7 @@ def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstp
     xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str_final = xml_declaration + "\n" + xml_body
 
-    logging.debug("XML de Resposta Balança Final (UTF-16):\n%s", xml_str_final)
+    logging.debug("XML de Resposta Final com linha atualizada:\n%s", xml_str_final)
     return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
 
@@ -152,8 +178,8 @@ def encaxotar_v2():
         peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_usado, balanca)
 
         return gerar_resposta_balanca_final(
-            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_usado
-        )
+    peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_usado, xml_data_bytes
+)
 
     except Exception as e:
         logging.exception("Erro fatal na rota /balanca_simulador")
