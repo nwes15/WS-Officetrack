@@ -101,7 +101,7 @@ def extrair_linha_alvo_e_tstpeso_v2(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
 def gerar_valores_peso(tstpeso_valor, balanca_id):
     """Gera valores de peso aleatórios para balança"""
     def formatar_numero(): 
-        return "{:.3f}".format(random.uniform(0.5, 500)).replace('.', ',')
+        return "{:.2f}".format(random.uniform(0.5, 500)).replace('.', ',')
     
     logging.debug(f"Gerando peso para balanca '{balanca_id}' com TSTPESO = '{tstpeso_valor}'")
     
@@ -265,36 +265,42 @@ def adicionar_campo_com_ID_resposta(parent_element, field_id, value):
 
 
 
-def encaxotar_v2():
-    # (código anterior de obtenção do XML mantido igual)
+def encaixotar_v2():
+    xml_data = request.data
+    root = etree.fromstring(xml_data)
 
-    try:
-        # 2. Obter parâmetro 'balanca'
-        balanca = request.args.get('balanca', 'balanca1').lower()
-        if balanca not in ["balanca1", "balanca2"]: 
-            return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+    table_field = root.find('.//TableField')
+    if table_field is None:
+        return Response("Nenhuma tabela encontrada", status=400)
 
-        # 3. Extrair TSTPESO e a Linha Alvo (usando a v2)
-        tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
-        tabela_id_a_usar = "TABCAIXA1" if balanca == "balanca1" else "TABCAIXA2"
-        logging.debug(f"Chamando extrair_linha_alvo_e_tstpeso_v2(...)")
-        tstpeso_valor_extraido, _ = extrair_linha_alvo_e_tstpeso_v2(xml_data_bytes, tabela_id_a_usar, tstpeso_id_a_usar)
+    nome_tabela = table_field.attrib.get('Name', 'UnknownTable')
+    linhas = table_field.findall('Row')
 
-        if tstpeso_valor_extraido is None:
-             return gerar_erro_xml_adaptado("Falha ao processar linha/TSTPESO no XML.", "Erro XML Proc")
+    nova_table = etree.Element('TableField', Name=nome_tabela)
 
-        logging.info(f"TSTPESO extraído da linha alvo: '{tstpeso_valor_extraido}'")
+    for linha in linhas:
+        nova_row = etree.Element('Row', linha.attrib)
 
-        # 4. Gerar Novos Pesos
-        peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
+        # Copia os campos da linha
+        for field in linha.findall('Field'):
+            novo_field = etree.SubElement(nova_row, 'Field', Name=field.attrib['Name'])
+            novo_field.text = field.text
 
-        # 5. Gerar Resposta XML Final Corrigida
-        logging.debug(f"Chamando gerar_resposta_final_corrigida com XML original...")
-        return gerar_resposta_final_corrigida(
-            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, 
-            tstpeso_valor_extraido, xml_data_bytes
-        )
+        nova_table.append(nova_row)
 
-    except Exception as e:
-        logging.exception("Erro GERAL fatal na rota /simulador_balanca_corrigido")
-        return gerar_erro_xml_adaptado(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
+        # Quando encontrar a linha atual, preenche os pesos e para
+        if linha.attrib.get('IsCurrentRow') == 'True':
+            for field in nova_row.findall('Field'):
+                nome = field.attrib['Name'].upper()
+                if nome in ['CX1PESO', 'CX2PESO']:
+                    field.text = gerar_valores_peso()
+                elif nome in ['CX1PESOBALANCA', 'CX2PESOBALANCA']:
+                    field.text = gerar_valores_peso()
+            break  # parar após a linha atual
+
+    resposta = etree.Element('Response')
+    resposta.append(nova_table)
+
+    xml_final = etree.tostring(resposta, encoding='utf-16', xml_declaration=True)
+
+    return Response(xml_final, mimetype='application/xml; charset=utf-16')
