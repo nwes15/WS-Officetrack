@@ -166,40 +166,81 @@ def encaixotar_v2():
         tstpeso_valor_a_definir = "0" # Mantendo a lógica de setar para '0'
         logging.debug(f"Valor a ser definido para '{tstpeso_id}': '{tstpeso_valor_a_definir}'")
 
-        # 8. MODIFICAR os Valores na Linha Atual (current_row)
+        # 8. MODIFICAR/CRIAR os Valores na Linha Atual (current_row)
         modificacoes = 0
-        # *** CORREÇÃO XPath para iterar nos Fields CORRETOS ***
-        for field in current_row.xpath(".//Fields/Field"):
-            field_id_elem = field.find("ID")
-            if field_id_elem is None or field_id_elem.text is None: continue
-            field_id = field_id_elem.text.strip()
-            value_elem = field.find("Value")
-            if value_elem is None: continue # Ignora se não houver <Value>
+        logging.debug(f"Iniciando iteração pelos Fields dentro da linha atual...")
 
+        # XPath para encontrar Fields DENTRO do elemento Fields da linha atual
+        fields_in_row = current_row.xpath(".//Fields/Field")
+        logging.debug(f"Encontrados {len(fields_in_row)} <Field> elementos usando XPath './/Fields/Field'.")
+
+        if not fields_in_row:
+             # Se nenhum Field for encontrado, a estrutura está errada.
+             logging.error("ERRO ESTRUTURAL: Nenhum elemento <Field> encontrado dentro de <Fields> na linha atual.")
+             return gerar_erro_xml_padrao("Nenhum <Field> encontrado na linha atual.", "Erro Estrutura XML", 500)
+
+        for field in fields_in_row:
+            field_id_elem = field.find("ID") # Busca <ID> diretamente dentro de <Field>
+            if field_id_elem is None or field_id_elem.text is None:
+                guid_elem = field.find("Guid") # Tenta logar o Guid para identificação
+                guid_text = guid_elem.text if guid_elem is not None else "N/A"
+                logging.warning(f"Encontrado <Field> (Guid: {guid_text}) sem <ID> válido. Pulando.")
+                continue # Pula Field sem ID
+
+            field_id_text_raw = field_id_elem.text
+            field_id = field_id_text_raw.strip()
+            logging.debug(f"--- Processando Field com ID='{field_id}' (raw='{field_id_text_raw}') ---")
+
+            target_value_to_set = None # Qual valor deve ser definido
+
+            # Verifica se este Field é um dos nossos alvos
             if field_id == peso_id:
-                value_elem.text = peso_novo
-                logging.debug(f"Campo '{peso_id}' atualizado para '{peso_novo}'")
-                modificacoes += 1
+                target_value_to_set = peso_novo
+                logging.debug(f"-> Alvo encontrado: '{peso_id}'")
             elif field_id == pesobalanca_id:
-                value_elem.text = pesobalanca_novo
-                logging.debug(f"Campo '{pesobalanca_id}' atualizado para '{pesobalanca_novo}'")
-                modificacoes += 1
+                target_value_to_set = pesobalanca_novo
+                logging.debug(f"-> Alvo encontrado: '{pesobalanca_id}'")
             elif field_id == tstpeso_id:
-                value_elem.text = tstpeso_valor_a_definir
-                logging.debug(f"Campo '{tstpeso_id}' atualizado para '{tstpeso_valor_a_definir}'")
-                modificacoes += 1
+                target_value_to_set = tstpeso_valor_a_definir
+                logging.debug(f"-> Alvo encontrado: '{tstpeso_id}'")
+            else:
+                 logging.debug(f"-> ID não corresponde a nenhum alvo. Ignorando modificação para este Field.")
+                 continue # Não é um alvo, passa para o próximo Field no loop
 
-        if modificacoes == 3:
-            logging.info("Todos os 3 campos alvo foram atualizados na linha atual.")
-        elif modificacoes > 0:
-             logging.warning(f"Apenas {modificacoes} de 3 campos alvo foram atualizados.")
+            # Se chegamos aqui, field_id É um dos alvos. Precisamos definir o <Value>.
+            value_elem = field.find("Value") # Tenta encontrar a tag <Value> existente
+
+            if value_elem is None:
+                # CRIA A TAG <Value> se não existir
+                logging.warning(f"Campo '{field_id}' não possui tag <Value>. Criando...")
+                value_elem = etree.SubElement(field, "Value") # Adiciona <Value></Value> como filho de <Field>
+                if value_elem is None:
+                     # Verificação de segurança extrema
+                     logging.error(f"FALHA CRÍTICA ao criar tag <Value> para o campo '{field_id}'.")
+                     continue # Pula este campo problemático
+
+            # Agora value_elem DEFINITIVAMENTE existe (ou foi criado)
+            try:
+                 value_elem.text = target_value_to_set
+                 logging.info(f"   SUCESSO: Campo '{field_id}' atualizado/definido para '{target_value_to_set}'")
+                 modificacoes += 1 # Incrementa SÓ SE foi um alvo E conseguiu setar o valor
+            except Exception as e_set:
+                 logging.error(f"   ERRO ao definir o texto da tag <Value> para o campo '{field_id}': {e_set}")
+
+
+        # Verificação final após o loop
+        logging.debug(f"Loop de modificação concluído. Total de modificações realizadas: {modificacoes}")
+
+        # Ajusta a condição de erro: SÓ dá erro se NENHUM campo foi modificado.
+        if modificacoes == 0:
+            logging.error(f"ERRO CRÍTICO PÓS-LOOP: Nenhuma modificação foi realizada! IDs alvo ({peso_id}, {pesobalanca_id}, {tstpeso_id}) não encontrados ou falha ao processá-los.")
+            return gerar_erro_xml_padrao(f"Nenhum dos campos alvo ({peso_id}, etc.) pôde ser atualizado.", "Erro Processamento Campo", 500)
+        elif modificacoes < 3:
+            logging.warning(f"Aviso: {modificacoes} de 3 campos alvo foram atualizados (verificar se todos existiam e eram alvo).")
         else:
-            # Este warning não deve mais ocorrer com o XPath corrigido, mas mantemos por segurança
-             logging.error("ERRO CRÍTICO: Nenhum campo alvo foi encontrado para atualização, mesmo com XPath corrigido.")
-             # Considerar retornar erro se modificacoes == 0, pois algo está errado.
-             return gerar_erro_xml_padrao(f"Nenhum campo ({peso_id}, {pesobalanca_id}, {tstpeso_id}) encontrado para atualizar.", "Erro Interno", 500)
+            logging.info("Todos os 3 campos alvo foram encontrados e atualizados com sucesso.")
 
-
+            
         # 9. Construir a Resposta <ResponseV2>
         logging.debug("Construindo a resposta no formato <ResponseV2>")
         nsmap_resp = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
