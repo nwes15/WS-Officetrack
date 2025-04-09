@@ -117,57 +117,121 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
 
 
 # --- Função de Resposta SIMPLIFICADA: Cria uma resposta básica ---
-def gerar_resposta_minima_com_valores(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
+def gerar_resposta_final_corrigida(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado, xml_bytes):
     """
-    Gera uma resposta XML básica mas funcional com os valores de peso necessários
+    Gera ResponseV2 mantendo a estrutura original do XML, apenas atualizando a linha marcada com IsCurrentRow.
     """
-    logging.debug(f"Gerando resposta MÍNIMA para balanca '{balanca_id}'")
+    logging.debug(f"Gerando resposta FINAL CORRIGIDA para balanca '{balanca_id}'")
+    try:
+        # Parse do XML original para preservar sua estrutura
+        parser = etree.XMLParser(recover=True)
+        tree = etree.parse(BytesIO(xml_bytes), parser)
+        root_original = tree.getroot()
+        
+        # Criar resposta com mesmo formato
+        nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
+        response = etree.Element("ResponseV2", nsmap=nsmap)
+        message = etree.SubElement(response, "MessageV2")
+        etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
+        return_value = etree.SubElement(response, "ReturnValueV2")
+        fields_container = etree.SubElement(return_value, "Fields")
+        
+        # Identificar tabela e campos corretos
+        tabela_id_alvo = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
+        peso_field_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
+        pesobalanca_field_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
+        
+        # Obter a tabela original para duplicar sua estrutura
+        xpath_tabela = f".//TableField[Id='{tabela_id_alvo}']"  # Id minúsculo para input
+        tabela_elements = root_original.xpath(xpath_tabela)
+        
+        if tabela_elements:
+            tabela_original = tabela_elements[0]
+            
+            # Criar a TableField na resposta
+            response_table = etree.SubElement(fields_container, "TableField")
+            etree.SubElement(response_table, "ID").text = tabela_id_alvo  # ID Maiúsculo
+            
+            # Criar Rows e copiar todas as linhas da tabela original
+            response_rows = etree.SubElement(response_table, "Rows")
+            
+            # Encontrar qual é a linha atual (com IsCurrentRow="True")
+            current_row_index = -1
+            rows_original = tabela_original.xpath(".//Row")
+            
+            for i, row in enumerate(rows_original):
+                is_current = row.get("IsCurrentRow") == "True"
+                if is_current:
+                    current_row_index = i
+                    break
+            
+            # Se não encontrou nenhuma linha marcada como atual, use a primeira linha
+            if current_row_index == -1 and rows_original:
+                current_row_index = 0
+            
+            # Recriar todas as linhas, atualizando apenas a linha marcada como atual
+            for i, row_original in enumerate(rows_original):
+                # Copiar todos os atributos da linha original
+                row_attrs = dict(row_original.attrib)
+                response_row = etree.SubElement(response_rows, "Row", **row_attrs)
+                
+                # Adicionar Fields dentro da Row
+                row_fields = etree.SubElement(response_row, "Fields")
+                
+                # Se esta é a linha atual, atualizar com os novos valores
+                if i == current_row_index:
+                    # Adicionar os campos atualizados
+                    adicionar_campo_com_ID_resposta(row_fields, tstpeso_id, tstpeso_valor_usado)
+                    adicionar_campo_com_ID_resposta(row_fields, peso_field_id, peso_novo)
+                    adicionar_campo_com_ID_resposta(row_fields, pesobalanca_field_id, pesobalanca_novo)
+                    
+                    # Manter outros campos originais, se existirem
+                    for field_original in row_original.xpath(".//Field"):
+                        field_id_elem = field_original.find("Id")
+                        if field_id_elem is not None:
+                            field_id = field_id_elem.text
+                            # Pular campos que já foram adicionados acima
+                            if field_id.upper() not in [tstpeso_id.upper(), peso_field_id.upper(), pesobalanca_field_id.upper()]:
+                                value_elem = field_original.find("Value")
+                                value = value_elem.text if value_elem is not None else ""
+                                adicionar_campo_com_ID_resposta(row_fields, field_id.upper(), value)
+                else:
+                    # Para as outras linhas, copiar todos os campos originais
+                    for field_original in row_original.xpath(".//Field"):
+                        field_id_elem = field_original.find("Id")
+                        if field_id_elem is not None:
+                            field_id = field_id_elem.text
+                            value_elem = field_original.find("Value")
+                            value = value_elem.text if value_elem is not None else ""
+                            adicionar_campo_com_ID_resposta(row_fields, field_id.upper(), value)
+        else:
+            # Se não encontrar tabela, criar uma nova tabela com uma linha
+            response_table = etree.SubElement(fields_container, "TableField")
+            etree.SubElement(response_table, "ID").text = tabela_id_alvo
+            response_rows = etree.SubElement(response_table, "Rows")
+            response_row = etree.SubElement(response_rows, "Row", IsCurrentRow="True")
+            row_fields = etree.SubElement(response_row, "Fields")
+            
+            # Adicionar os campos atualizados
+            adicionar_campo_com_ID_resposta(row_fields, tstpeso_id, tstpeso_valor_usado)
+            adicionar_campo_com_ID_resposta(row_fields, peso_field_id, peso_novo)
+            adicionar_campo_com_ID_resposta(row_fields, pesobalanca_field_id, pesobalanca_novo)
+        
+        # Partes estáticas
+        etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
+        etree.SubElement(return_value, "LongText")
+        etree.SubElement(return_value, "Value").text = "58"
+        
+        # Serialização
+        xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
+        xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+        xml_str_final = xml_declaration + xml_body
+        logging.debug("XML de Resposta FINAL CORRIGIDO (UTF-16):\n%s", xml_str_final)
+        return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
     
-    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
-    response = etree.Element("ResponseV2", nsmap=nsmap)
-    
-    # Mensagem
-    message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
-    
-    # ReturnValue
-    return_value = etree.SubElement(response, "ReturnValueV2")
-    fields_container = etree.SubElement(return_value, "Fields")
-    
-    # Determina IDs com base na balança
-    tabela_id_alvo = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
-    peso_field_id = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
-    pesobalanca_field_id = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
-    
-    # Cria a TableField na resposta
-    table_field = etree.SubElement(fields_container, "TableField")
-    etree.SubElement(table_field, "ID").text = tabela_id_alvo  # ID Maiúsculo
-    
-    # Cria Rows e Row com IsCurrentRow
-    rows = etree.SubElement(table_field, "Rows")
-    row = etree.SubElement(rows, "Row")
-    row.set("IsCurrentRow", "True")
-    
-    # Adiciona Fields dentro da Row
-    row_fields = etree.SubElement(row, "Fields")
-    
-    # Adiciona os 3 campos essenciais
-    adicionar_campo_com_ID_resposta(row_fields, tstpeso_id, tstpeso_valor_usado)
-    adicionar_campo_com_ID_resposta(row_fields, peso_field_id, peso_novo)
-    adicionar_campo_com_ID_resposta(row_fields, pesobalanca_field_id, pesobalanca_novo)
-    
-    # Partes estáticas
-    etree.SubElement(return_value, "ShortText").text = "Processado com sucesso"
-    etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "1"  # Indica sucesso
-    
-    # Serialização
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
-    xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
-    xml_str_final = xml_declaration + xml_body
-    
-    logging.debug("XML de Resposta MÍNIMA (UTF-16):\n%s", xml_str_final)
-    return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    except Exception as e:
+        logging.exception("Erro ao gerar resposta final")
+        return gerar_erro_xml_adaptado(f"Erro ao gerar resposta final: {str(e)}", "Erro Processamento", 500)
 
 
 def adicionar_campo_com_ID_resposta(parent_element, field_id, value):
@@ -177,79 +241,52 @@ def adicionar_campo_com_ID_resposta(parent_element, field_id, value):
     etree.SubElement(field, "Value").text = value if value is not None else ""
 
 
-# --- Rota Principal (Corrigida) ---
-app = Flask(__name__)
 
-@app.route('/simulador_balanca_corrigido', methods=['POST'])
-@app.route('/teste_caixa', methods=['POST'])  # Rota adicional para compatibilidade
 def encaxotar_v2():
-    """
-    Função principal que processa o XML de entrada e retorna uma resposta com valores de peso
-    """
+    logging.info(f"--- Nova Requisição {request.method} para /simulador_balanca_corrigido ---")
+    # 1. Obtenção Robusta do XML
+    content_type = request.headers.get("Content-Type", "").lower(); xml_data_str = None; xml_data_bytes = None
+    if 'form' in content_type.lower() and request.form:
+        for name in ["TextXML", "textxml", "XMLData", "xmldata", "xml"]:
+            if name in request.form: xml_data_str = request.form.get(name); break
+        if not xml_data_str and request.form: first_key = next(iter(request.form)); xml_data_str = request.form.get(first_key)
+    if not xml_data_str and request.data:
+        try: xml_data_bytes = request.data; xml_data_str = xml_data_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+             try: xml_data_str = request.data.decode('latin-1'); xml_data_bytes = request.data
+             except UnicodeDecodeError: return gerar_erro_xml_adaptado("Encoding inválido.", "Erro Encoding", 400)
+    if not xml_data_bytes and xml_data_str:
+        try: xml_data_bytes = xml_data_str.encode('utf-8')
+        except Exception as e: return gerar_erro_xml_adaptado(f"Erro codificando form data: {e}", "Erro Encoding", 500)
+    if not xml_data_bytes: return gerar_erro_xml_adaptado("XML não encontrado.", "Erro Input", 400)
+    logging.debug("XML Data (início):\n%s", xml_data_str[:500] if xml_data_str else "N/A")
+
     try:
-        logging.info(f"--- Nova Requisição {request.method} ---")
-        
-        # 1. Obtenção do XML
-        xml_data_bytes = None
-        
-        # Tenta obter de form-data
-        if request.form:
-            for name in ["TextXML", "textxml", "XMLData", "xmldata", "xml"]:
-                if name in request.form:
-                    xml_data_str = request.form.get(name)
-                    xml_data_bytes = xml_data_str.encode('utf-8')
-                    break
-            
-            # Se não encontrou nas chaves conhecidas, tenta a primeira chave
-            if not xml_data_bytes and request.form:
-                first_key = next(iter(request.form))
-                xml_data_str = request.form.get(first_key)
-                xml_data_bytes = xml_data_str.encode('utf-8')
-        
-        # Tenta obter de request.data se ainda não encontrou
-        if not xml_data_bytes and request.data:
-            xml_data_bytes = request.data
-            
-        # Verifica se tem dados
-        if not xml_data_bytes:
-            logging.error("XML não encontrado na requisição")
-            return gerar_erro_xml_adaptado("XML não encontrado.", "Erro Input", 400)
-            
         # 2. Obter parâmetro 'balanca'
         balanca = request.args.get('balanca', 'balanca1').lower()
-        if balanca not in ["balanca1", "balanca2"]:
-            return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido.", "Erro Param", 400)
-            
-        # 3. Configurar IDs baseados na balança
+        if balanca not in ["balanca1", "balanca2"]: return gerar_erro_xml_adaptado("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+
+        # 3. Extrair TSTPESO e a Linha Alvo (usando a v2)
         tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
         tabela_id_a_usar = "TABCAIXA1" if balanca == "balanca1" else "TABCAIXA2"
-        
-        # 4. Extrair TSTPESO
-        logging.debug(f"Extração para tabela='{tabela_id_a_usar}', campo='{tstpeso_id_a_usar}'")
-        tstpeso_valor_extraido, _ = extrair_linha_alvo_e_tstpeso_v2(
-            xml_data_bytes, tabela_id_a_usar, tstpeso_id_a_usar
-        )
-        
-        # Se falhar, usa valor default
-        if tstpeso_valor_extraido is None:
-            tstpeso_valor_extraido = "0"
-            logging.warning(f"Usando valor default TSTPESO='0' após falha na extração")
-            
-        # 5. Gerar valores de peso
+        logging.debug(f"Chamando extrair_linha_alvo_e_tstpeso_v2(tabela='{tabela_id_a_usar}', campo='{tstpeso_id_a_usar}')")
+        tstpeso_valor_extraido, _ = extrair_linha_alvo_e_tstpeso_v2(xml_data_bytes, tabela_id_a_usar, tstpeso_id_a_usar)
+
+        # Verifica se a extração falhou (embora a função já retorne '0' como default)
+        if tstpeso_valor_extraido is None: # Checagem extra de segurança
+             return gerar_erro_xml_adaptado("Falha ao processar linha/TSTPESO no XML.", "Erro XML Proc")
+
+        logging.info(f"TSTPESO extraído da linha alvo: '{tstpeso_valor_extraido}'")
+
+        # 4. Gerar Novos Pesos
         peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
-        logging.info(f"Valores gerados: peso={peso_novo}, pesobalanca={pesobalanca_novo}")
-        
-        # 6. Gerar resposta mínima (mais simples e robusta)
-        return gerar_resposta_minima_com_valores(
-            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_extraido
+
+        # 5. Gerar Resposta XML Final Corrigida (preservando estrutura original)
+        logging.debug(f"Chamando gerar_resposta_final_corrigida(...)")
+        return gerar_resposta_final_corrigida(
+            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_extraido, xml_data_bytes
         )
-        
+
     except Exception as e:
-        logging.exception("ERRO FATAL no processamento da requisição")
-        return gerar_erro_xml_adaptado(
-            f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500
-        )
-
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+        logging.exception("Erro GERAL fatal na rota /simulador_balanca_corrigido")
+        return gerar_erro_xml_adaptado(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
