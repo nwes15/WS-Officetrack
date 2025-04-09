@@ -125,8 +125,8 @@ def gerar_resposta_xml_v2(data):
     # Adicionar TableField exemplo
     table_field_id = "TABCAIXA1"
     rows_data = [
-        {"TextTable": "Y", "CX1PESO": "9.0"},
-        {"TextTable": "X", "CX1PESO": "8.0"},
+        {"TextTable": "Y", "CX1PESO": "9,0"},
+        {"TextTable": "X", "CX1PESO": "8,0"},
     ]
     adicionar_table_field(fields, table_field_id, rows_data)
     
