@@ -109,7 +109,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
 # --- Rota Principal ---
 # ** Use a URL que o cliente chama! Ex: /teste_caixa **
 
-def rota_teste_caixa():
+def encaixotar_v2():
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
     # 1. Obtenção Robusta do XML
     content_type = request.headers.get("Content-Type", "").lower(); xml_data_str = None; xml_data_bytes = None
