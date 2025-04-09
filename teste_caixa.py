@@ -138,8 +138,8 @@ def gerar_resposta_officetrack_exata(root_original, peso_novo, pesobalanca_novo,
 
 # --- Rota Principal ---
 # ** Use a URL que o cliente chama! **
-@app.route("/teste_caixa", methods=['POST'])
-def rota_teste_caixa():
+
+def encaixotar():
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
     # 1. Obtenção Robusta do XML (mantida)
     content_type = request.headers.get("Content-Type", "").lower(); xml_data_str = None; xml_data_bytes = None
