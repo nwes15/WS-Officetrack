@@ -24,10 +24,21 @@ def gerar_erro_xml_adaptado(mensagem, short_text="Erro", status_code=400):
     xml_str_final = xml_declaration + "\n" + xml_body
     return Response(xml_str_final.encode("utf-16"), status=status_code, content_type="application/xml; charset=utf-16")
 
-def adicionar_campo_com_ID(parent_element, field_id, value):
-    field = etree.SubElement(parent_element, "Field")
-    etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = value if value is not None else ""
+def atualizar_ou_criar_campo(linha, id_campo, valor):
+    campo = linha.xpath(f".//Field[Id='{id_campo}']")
+    if campo:
+        value_element = campo[0].find("Value")
+        if value_element is not None:
+            value_element.text = valor
+        else:
+            etree.SubElement(campo[0], "Value").text = valor
+    else:
+        fields_container = linha.find("Fields")
+        if fields_container is None:
+            fields_container = etree.SubElement(linha, "Fields")
+        field = etree.SubElement(fields_container, "Field")
+        etree.SubElement(field, "ID").text = id_campo
+        etree.SubElement(field, "Value").text = valor
 
 def extrair_tstpeso_da_tabela(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
     try:
@@ -38,12 +49,10 @@ def extrair_tstpeso_da_tabela(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
         if not tabela_element:
             return "0"
         tabela_element = tabela_element[0]
-
         current_row = tabela_element.xpath(".//Row[@IsCurrentRow='True']")
         if not current_row:
             return "0"
         linha_alvo = current_row[0]
-
         tstpeso_element = linha_alvo.xpath(f".//Field[Id='{tstpeso_id_alvo}']/Value")
         if tstpeso_element and tstpeso_element[0].text:
             valor = tstpeso_element[0].text.strip()
@@ -73,7 +82,6 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
 def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstpeso_valor_usado, xml_original):
     logging.debug(f"Gerando resposta final (balanca) para balanca '{balanca_id}'")
 
-    # Parse o XML original
     parser = etree.XMLParser(recover=True, encoding='utf-8')
     tree = etree.parse(BytesIO(xml_original), parser)
     root = tree.getroot()
@@ -92,21 +100,10 @@ def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstp
 
     linha_modificada = etree.fromstring(etree.tostring(linha_atual[0]))
 
-    # Atualizar os campos de peso
-    def atualizar_ou_criar_campo(linha, id_campo, valor):
-        campo = linha.xpath(f".//Field[Id='{id_campo}']")
-        if campo:
-            campo[0].find("Value").text = valor
-        else:
-            field = etree.SubElement(linha.find("Fields"), "Field")
-            etree.SubElement(field, "ID").text = id_campo
-            etree.SubElement(field, "Value").text = valor
-
     atualizar_ou_criar_campo(linha_modificada, tstpeso_id, tstpeso_valor_usado)
     atualizar_ou_criar_campo(linha_modificada, peso_field_id, peso)
     atualizar_ou_criar_campo(linha_modificada, pesobalanca_field_id, pesobalanca)
 
-    # Construir o XML de resposta
     nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
     response = etree.Element("ResponseV2", nsmap=nsmap)
     message = etree.SubElement(response, "MessageV2")
@@ -129,7 +126,6 @@ def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstp
 
     logging.debug("XML de Resposta Final com linha atualizada:\n%s", xml_str_final)
     return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
 
 
 def encaxotar_v2():
@@ -178,10 +174,9 @@ def encaxotar_v2():
         peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_usado, balanca)
 
         return gerar_resposta_balanca_final(
-    peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_usado, xml_data_bytes
-)
+            peso_novo, pesobalanca_novo, balanca, tstpeso_id_a_usar, tstpeso_valor_usado, xml_data_bytes
+        )
 
     except Exception as e:
         logging.exception("Erro fatal na rota /balanca_simulador")
         return gerar_erro_xml_adaptado(f"Erro interno inesperado no servidor: {str(e)}", "Erro Servidor", 500)
-
