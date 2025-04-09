@@ -7,7 +7,7 @@ def gerar_peso():
     return f"{random.uniform(0.5, 500.0):.2f}".replace(".", ",")
 
 
-def encaxotar():
+def encaxotar_v2():
     xml_data = request.data.decode('utf-8')
     balanca = request.args.get('balanca')  # 'balanca1' ou 'balanca2'
 
