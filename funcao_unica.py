@@ -1,152 +1,150 @@
-# -*- coding: utf-8 -*-
-
 from flask import Flask, request, Response
 from lxml import etree
 import random
 import logging
-from io import BytesIO, StringIO
+from io import StringIO
+from utils import gerar_erro
+
+app = Flask(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
+xml_logger = logging.getLogger('XML_LOGGER')
+xml_logger.setLevel(logging.DEBUG)
 
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
+ultimo_valor = {
+    'balanca1': None,
+    'balanca2': None
+}
 
-
-
-def gerar_erro_xml_padrao(mensagem, short_text="Erro", status_code=400):
-    """Gera um XML de erro no formato ResponseV2 (UTF-16)."""
-    # (Usando a versão robusta)
-    logging.error(f"Gerando erro: {mensagem}")
-    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance','xsd': 'http://www.w3.org/2001/XMLSchema'}
-    response = etree.Element("ResponseV2", nsmap=nsmap); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = mensagem
-    return_value = etree.SubElement(response, "ReturnValueV2"); etree.SubElement(return_value, "Fields"); etree.SubElement(return_value, "ShortText").text = short_text; etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "0"
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'; xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16"); xml_str_final = xml_declaration + xml_body
-    return Response(xml_str_final.encode("utf-16"), status=status_code, content_type="application/xml; charset=utf-16")
-
-def adicionar_campo_com_ID_resposta(parent_element, field_id, value):
-    """Cria e adiciona <Field><ID>...</ID><Value>...</Value></Field> (ID maiúsculo)."""
-    # (Usando a versão que garante ID maiúsculo)
-    field = etree.SubElement(parent_element, "Field"); etree.SubElement(field, "ID").text = field_id; etree.SubElement(field, "Value").text = value if value is not None else ""
-
-def extrair_campo_nivel_superior(xml_bytes, field_id_alvo):
-    """Extrai o valor de um campo específico no nível superior."""
-    # (Usando a versão robusta que busca Id minúsculo)
-    if not xml_bytes: return None
+def extrair_campos_xml(xml_data):
+    """Extrai campos relevantes do XML de entrada"""
     try:
-        parser = etree.XMLParser(recover=True); tree = etree.parse(BytesIO(xml_bytes), parser); root = tree.getroot()
-        main_fields = root.find("./Fields") or root.find(".//Form/Fields")
-        if main_fields is not None:
-            field_element = main_fields.xpath(f"./Field[Id='{field_id_alvo}']") # Id minúsculo
-            if field_element:
-                value_elem = field_element[0].find("Value")
-                if value_elem is not None and value_elem.text is not None: return value_elem.text.strip()
-                else: return ""
+        logging.debug(f"Iniciando extração de campos do XML (tamanho: {len(xml_data)} bytes)")
+        xml_logger.debug("\n=== XML RECEBIDO ===\n%s\n=== FIM XML ===", xml_data)
+
+        parser = etree.XMLParser(recover=True)
+        tree = etree.parse(StringIO(xml_data), parser)
+        root = tree.getroot()
+
+        campos = {}
+        for field in root.findall(".//Field"):
+            field_id = field.findtext("ID") or field.findtext("Id")
+            if field_id:
+                campos[field_id] = field.findtext("Value")
+        
+        logging.debug(f"Campos extraídos: {campos}")
+        return campos
+    except Exception as e:
+        logging.error(f"Erro ao processar XML: {e}")
         return None
-    except Exception: logging.exception(f"Erro ao extrair '{field_id_alvo}'"); return None
 
-# --- Função gerar_valores_peso CORRIGIDA ---
-def gerar_valores_peso(tstpeso_valor, balanca_id):
-    """Gera peso e pesobalanca, respeitando TSTPESO."""
+def gerar_valores_peso(tstpeso, balanca):
+    """Gera valores de peso conforme a lógica especificada"""
     def formatar_numero():
-        # 3 casas decimais
-        return "{:.3f}".format(random.uniform(0.5, 500.0)).replace('.', ',')
-    logging.debug(f"Gerando peso para balanca '{balanca_id}' com TSTPESO = '{tstpeso_valor}'")
+        # Usar 3 casas decimais para diminuir chance de colisão
+        return "{:.2f}".format(random.uniform(0.5, 500.0)).replace('.', ',')
 
-    # Normaliza para '0' ou '1'
-    tstpeso_normalizado = "1" if str(tstpeso_valor).strip() == "1" else "0"
-    if tstpeso_normalizado != tstpeso_valor: logging.warning(f"TSTPESO original '{tstpeso_valor}' normalizado para '{tstpeso_normalizado}'.")
+    # Adiciona logging para clareza
+    logging.debug(f"Gerando peso para balanca '{balanca}' com TSTPESO = '{tstpeso}'")
 
-    if tstpeso_normalizado == "0":
+    if tstpeso == "0":
         valor = formatar_numero()
         logging.debug(f"  -> Peso/Balanca (TST=0): {valor}")
         return valor, valor
-    else: # tstpeso_normalizado == "1"
+    elif tstpeso == "1":
+        # Para tstpeso=1, geramos dois valores intencionalmente diferentes
         peso = formatar_numero()
         pesobalanca = formatar_numero()
-        retry_count = 0; max_retries = 10
-        # *** LOOP WHILE ADICIONADO ***
+        
+        # Garantir que são diferentes
+        retry_count = 0
+        max_retries = 10  # Segurança
         while peso == pesobalanca and retry_count < max_retries:
-            logging.debug("  -> Regerando pesobalanca...")
             pesobalanca = formatar_numero()
             retry_count += 1
-        # ****************************
-        if peso == pesobalanca: logging.warning("Não gerou pesos diferentes!")
+            logging.debug(f"  -> Regerando pesobalanca, tentativa {retry_count}")
+        
         logging.debug(f"  -> Peso (TST=1): {peso}, Balanca: {pesobalanca}")
-        return peso, pesobalanca # Retorna valores (quase sempre) diferentes
+        return peso, pesobalanca
+    else:
+        # Fallback para TSTPESO inválido
+        logging.warning(f"TSTPESO inválido: '{tstpeso}'. Gerando como TST=0.")
+        valor = formatar_numero()
+        return valor, valor
 
-# --- Função de Resposta SIMPLES (Estilo CEP / Balanca Consulta) ---
-def gerar_resposta_campos_simples(peso_val, pesobalanca_val, balanca_id, tstpeso_id, tstpeso_val):
-    """Gera ResponseV2 apenas com os campos PESOn, PESOBALANCAn e TSTPESOn."""
-    logging.debug(f"Gerando resposta CAMPOS SIMPLES para balanca '{balanca_id}'")
-    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance','xsd': 'http://www.w3.org/2001/XMLSchema'}
-    response = etree.Element("ResponseV2", nsmap=nsmap); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
-    return_value = etree.SubElement(response, "ReturnValueV2"); fields_container = etree.SubElement(return_value, "Fields")
+def gerar_resposta_xml(peso, pesobalanca, balanca, tstpeso):
+    """Gera a resposta XML formatada corretamente"""
+    nsmap = {
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xsd': 'http://www.w3.org/2001/XMLSchema'
+    }
 
-    # IDs da Resposta (maiúsculos)
-    peso_id_resp = "PESO1" if balanca_id == "balanca1" else "PESO2"
-    pesobalanca_id_resp = "PESOBALANCA1" if balanca_id == "balanca1" else "PESOBALANCA2"
-    # tstpeso_id já é TSTPESO1 ou TSTPESO2
+    response = etree.Element("ResponseV2", nsmap=nsmap)
 
-    # Adiciona os 3 campos diretamente
-    adicionar_campo_com_ID_resposta(fields_container, peso_id_resp, peso_val)
-    adicionar_campo_com_ID_resposta(fields_container, pesobalanca_id_resp, pesobalanca_val)
-    adicionar_campo_com_ID_resposta(fields_container, tstpeso_id, tstpeso_val) # Inclui o TSTPESO usado
+    message = etree.SubElement(response, "MessageV2")
+    etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
 
-    # Partes estáticas
+    return_value = etree.SubElement(response, "ReturnValueV2")
+    fields = etree.SubElement(return_value, "Fields")
+
+    if balanca == "balanca1":
+        adicionar_campo(fields, "PESO1", peso)
+        adicionar_campo(fields, "PESOBALANCA1", pesobalanca)
+    else:
+        adicionar_campo(fields, "PESO2", peso)
+        adicionar_campo(fields, "PESOBALANCA2", pesobalanca)
+
+    adicionar_campo(fields, "TSTPESO", tstpeso)
+
     etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
-    etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "58"
+    etree.SubElement(return_value, "LongText")
+    etree.SubElement(return_value, "Value").text = "58"
 
-    # Serialização
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'; xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16"); xml_str_final = xml_declaration + xml_body
-    logging.debug("XML Resp Campos Simples (UTF-16):\n%s", xml_str_final)
-    return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    xml_bytes = etree.tostring(response, encoding="utf-16", xml_declaration=True)
+    return xml_bytes
 
+def adicionar_campo(parent, field_id, value):
+    """Adiciona um campo ao XML de resposta"""
+    field = etree.SubElement(parent, "Field")
+    etree.SubElement(field, "ID").text = field_id
+    etree.SubElement(field, "Value").text = value
 
-
-def encaixotar_v3():
-    logging.info(f"--- Nova Requisição {request.method} para {request.path} ---")
-    # 1. Obtenção Robusta do XML
-    content_type = request.headers.get("Content-Type", "").lower(); xml_data_str = None; xml_data_bytes = None
-    # ... (código de obtenção mantido) ...
-    if 'form' in content_type.lower() and request.form:
-        for name in ["TextXML", "textxml", "XMLData", "xmldata", "xml"]:
-            if name in request.form: xml_data_str = request.form.get(name); break
-        if not xml_data_str and request.form: first_key = next(iter(request.form)); xml_data_str = request.form.get(first_key)
-        if xml_data_str: logging.info("XML obtido de request.form.")
-    if not xml_data_str and request.data:
-        try: xml_data_bytes = request.data; xml_data_str = xml_data_bytes.decode('utf-8'); logging.info("XML obtido de request.data (UTF-8).")
-        except UnicodeDecodeError:
-             try: xml_data_str = request.data.decode('latin-1'); xml_data_bytes = request.data; logging.info("XML obtido de request.data (Latin-1).")
-             except UnicodeDecodeError: return gerar_erro_xml_padrao("Encoding inválido.", "Erro Encoding", 400)
-    if not xml_data_bytes and xml_data_str:
-        try: xml_data_bytes = xml_data_str.encode('utf-8')
-        except Exception as e: return gerar_erro_xml_padrao(f"Erro codificando form data: {e}", "Erro Encoding", 500)
-    if not xml_data_bytes: return gerar_erro_xml_padrao("XML não encontrado.", "Erro Input", 400)
-
+@app.route("/funcao_unica", methods=['GET', 'POST'])
+def consultar_peso_unico():
+    """Endpoint principal para consulta de peso"""
     try:
-        # 2. Obter parâmetro 'balanca'
-        balanca = request.args.get('balanca', 'balanca1').lower()
-        if balanca not in ["balanca1", "balanca2"]: return gerar_erro_xml_padrao("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+        # Verifica se o parâmetro balanca está na URL
+        balanca = request.args.get('balanca', 'balanca1')  # Padrão é balanca1 caso não seja especificado
+        
+        # Validar se o valor de balanca é válido
+        if balanca not in ["balanca1", "balanca2"]:
+            return gerar_erro("Valor de 'balanca' inválido. Deve ser 'balanca1' ou 'balanca2'")
 
-        # *** 3. Extrair TSTPESO do Nível Superior CORRETAMENTE ***
-        tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
-        tstpeso_valor_extraido = extrair_campo_nivel_superior(xml_data_bytes, tstpeso_id_a_usar)
-        # A função gerar_valores_peso trata None/inválido
-        logging.info(f"TSTPESO extraído (nível superior) para {tstpeso_id_a_usar}: '{tstpeso_valor_extraido}'")
+        # Obter XML da requisição
+        if request.content_type == 'application/xml':
+            xml_data = request.data.decode('utf-8')
+        else:
+            xml_data = request.form.get('xml') or request.form.get('TextXML') or next(iter(request.form.values()))
+        
+        if not xml_data:
+            return gerar_erro("Nenhum dado XML encontrado na requisição")
+        
+        # Extrair campos do XML
+        campos = extrair_campos_xml(xml_data)
+        if not campos:
+            return gerar_erro("Não foi possível extrair campos do XML")
 
-        # 4. Gerar Novos Pesos (usando função CORRIGIDA)
-        peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
+        tstpeso = campos.get("TSTPESO", "0")
+        if tstpeso not in ["0", "1"]:
+            return gerar_erro("Campo TSTPESO deve ser 0 ou 1")
 
-        # 5. Gerar Resposta XML SIMPLES (sem tabela)
-        # Normaliza o TSTPESO para resposta
-        tstpeso_resp = "1" if str(tstpeso_valor_extraido).strip() == "1" else "0"
-        return gerar_resposta_campos_simples(
-            peso_val=peso_novo,
-            pesobalanca_val=pesobalanca_novo,
-            balanca_id=balanca,
-            tstpeso_id=tstpeso_id_a_usar, # TSTPESO1 ou TSTPESO2
-            tstpeso_val=tstpeso_resp     # 0 ou 1
-        )
+        peso, pesobalanca = gerar_valores_peso(tstpeso, balanca)
+        ultimo_valor[balanca] = peso
+
+        xml_resposta = gerar_resposta_xml(peso, pesobalanca, balanca, tstpeso)
+        return Response(xml_resposta, content_type='application/xml; charset=utf-16')
 
     except Exception as e:
-        logging.exception(f"Erro GERAL fatal na rota {request.path}")
-        return gerar_erro_xml_padrao(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
-
+        logging.error(f"Erro no processamento: {str(e)}")
+        return gerar_erro(f"Erro interno: {str(e)}")
