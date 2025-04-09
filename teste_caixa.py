@@ -70,7 +70,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
       <TableField>
         <ID>{tabela_id_resp}</ID>
         <Rows>
-          <Row>
+          <Row IsCurrentRow="True">
             <Fields>
               <Field>
                 <ID>{tstpeso_id_resp}</ID>
@@ -95,9 +95,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
   </ReturnValueV2>
 </ResponseV2>"""
 
-    # Remove indentação inicial comum do template (opcional, mas deixa mais limpo)
-    # import textwrap
-    # xml_final_string = textwrap.dedent(xml_template).strip()
+
     xml_final_string = xml_template # Manter indentação original por enquanto
 
     logging.debug("XML de Resposta STRING TEMPLATE (UTF-16):\n%s", xml_final_string)
