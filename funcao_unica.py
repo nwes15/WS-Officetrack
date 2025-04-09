@@ -52,21 +52,21 @@ def gerar_valores_peso(tstpeso, balanca):
         valor = formatar_numero()
         logging.debug(f"  -> Peso/Balanca (TST=0): {valor}")
         return valor, valor
-    elif tstpeso == "1": # Ser explícito
+    elif tstpeso == "1":
+        # Para tstpeso=1, geramos dois valores intencionalmente diferentes
         peso = formatar_numero()
         pesobalanca = formatar_numero()
-        # *** ADICIONAR O LOOP WHILE ***
+        
+        # Garantir que são diferentes
         retry_count = 0
-        max_retries = 10 # Segurança
+        max_retries = 10  # Segurança
         while peso == pesobalanca and retry_count < max_retries:
-            logging.debug("  -> Valores gerados eram iguais, regerando pesobalanca...")
             pesobalanca = formatar_numero()
             retry_count += 1
-        # *****************************
-        if peso == pesobalanca: # Log se ainda forem iguais
-            logging.warning("Não foi possível gerar pesos diferentes após várias tentativas!")
+            logging.debug(f"  -> Regerando pesobalanca, tentativa {retry_count}")
+        
         logging.debug(f"  -> Peso (TST=1): {peso}, Balanca: {pesobalanca}")
-        return peso, pesobalanca # Agora retorna valores possivelmente diferentes
+        return peso, pesobalanca
     else:
         # Fallback para TSTPESO inválido
         logging.warning(f"TSTPESO inválido: '{tstpeso}'. Gerando como TST=0.")
