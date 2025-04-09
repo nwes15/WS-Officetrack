@@ -82,8 +82,8 @@ def gerar_resposta_pesos_lidos(peso_lido, pesobalanca_lido, balanca_id):
 
 # --- Rota Principal (Adaptada para Consulta Simples) ---
 # ** Use a URL que o cliente chama para esta ação específica! **
-@app.route("/consultar_peso_existente", methods=['POST']) # Exemplo de URL
-def rota_consultar_peso_existente():
+ # Exemplo de URL
+def encaixotar_v3():
     logging.info(f"--- Nova Requisição {request.method} para /consultar_peso_existente ---")
     try:
         # --- 1. Obtenção Robusta do XML (adaptada dos exemplos) ---
