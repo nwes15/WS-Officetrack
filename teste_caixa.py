@@ -70,7 +70,7 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
             pesobalanca = formatar_numero()
         return peso, pesobalanca
 
-def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstpeso_valor_usado):
+def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstpeso_valor_usado, linha_original=None):
     logging.debug(f"Gerando resposta final (balanca) para balanca '{balanca_id}'")
     nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
     response = etree.Element("ResponseV2", nsmap=nsmap)
@@ -86,7 +86,7 @@ def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstp
     response_table = etree.SubElement(response_fields_container, "TableField")
     etree.SubElement(response_table, "ID").text = tabela_id_alvo
     response_rows_container = etree.SubElement(response_table, "Rows")
-    response_row = etree.SubElement(response_rows_container, "Row")
+    response_row = etree.SubElement(response_rows_container, "Row", IsCurrentRow="True")
     response_row_fields_container = etree.SubElement(response_row, "Fields")
 
     adicionar_campo_com_ID(response_row_fields_container, tstpeso_id, tstpeso_valor_usado)
@@ -103,6 +103,7 @@ def gerar_resposta_balanca_final(peso, pesobalanca, balanca_id, tstpeso_id, tstp
 
     logging.debug("XML de Resposta Balança Final (UTF-16):\n%s", xml_str_final)
     return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
+
 
 
 def encaxotar_v2():
