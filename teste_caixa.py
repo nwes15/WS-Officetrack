@@ -66,6 +66,10 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
     <Text>Consulta realizada com sucesso.</Text>
   </MessageV2>
   <ReturnValueV2>
+    <Field>
+      <ID></ID>
+      <Value></Value>
+    </Field>
     <Fields>
       <TableField>
         <ID>{tabela_id_resp}</ID>
@@ -83,22 +87,6 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
               <Field>
                 <ID>{pesobalanca_id_resp}</ID>
                 <Value>{pesobalanca_novo}</Value>
-              </Field>
-            </Fields>
-          </Row>
-          <Row>
-            <Fields>
-              <Field>
-                <ID></ID>
-                <Value></Value>
-              </Field>
-              <Field>
-                <ID></ID>
-                <Value></Value>
-              </Field>
-              <Field>
-                <ID></ID>
-                <Value></Value>
               </Field>
             </Fields>
           </Row>
@@ -161,7 +149,7 @@ def encaixotar_v2():
             peso_novo=peso_novo,
             pesobalanca_novo=pesobalanca_novo,
             balanca_id=balanca,
-            tstpeso_id=tstpeso_id_a_usar, # Passa o ID correto
+            tstpeso_id=tstpeso_id_a_usar,
             tstpeso_valor_usado=tstpeso_valor_extraido
         )
 
