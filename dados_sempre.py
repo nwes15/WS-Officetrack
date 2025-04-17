@@ -10,8 +10,33 @@ def adicionar_campo(parent, field_id, value):
     etree.SubElement(field, "ID").text = field_id
     etree.SubElement(field, "Value").text = str(value)
 
-def gerar_resposta_xml():
-    """Gera a resposta XML com as 11 tabelas e 60 linhas cada."""
+def extract_xml_from_request():
+    """Extrai o XML da requisição de várias fontes possíveis"""
+    xml_data = None
+    
+    # Tenta do form primeiro (com vários nomes possíveis)
+    if request.form:
+        for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+            if possible_name in request.form:
+                xml_data = request.form.get(possible_name)
+                break
+        
+        # Se não encontrou por nome específico, tenta o primeiro campo do form
+        if not xml_data and len(request.form) > 0:
+            first_key = next(iter(request.form))
+            xml_data = request.form.get(first_key)
+    
+    # Se não encontrou no form, tenta do corpo da requisição
+    if not xml_data and request.data:
+        try:
+            xml_data = request.data.decode('utf-8')
+        except:
+            pass
+    
+    return xml_data
+
+def gerar_resposta_xml(quantidade_linhas):
+    """Gera a resposta XML com as 11 tabelas e a quantidade especificada de linhas cada."""
     # Definir namespaces
     nsmap = {
         'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
@@ -23,15 +48,11 @@ def gerar_resposta_xml():
     
     # Adicionar seção de mensagem
     message = etree.SubElement(response, "MessageV2")
-    etree.SubElement(message, "Text").text = "Dados gerados com sucesso"
+    etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
     
     # Criar seção ReturnValueV2
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
-    
-    # Adicionar campos de exemplo
-    adicionar_campo(fields, "Test1", "Teste Elétrico")
-    adicionar_campo(fields, "Num1", "123")
     
     # Gerar as 11 tabelas
     for i in range(1, 12):
@@ -40,19 +61,23 @@ def gerar_resposta_xml():
         etree.SubElement(table_field, "ID").text = f"{i}TESTE_ELETRICO"
         rows = etree.SubElement(table_field, "Rows")
         
-        # Gerar 60 linhas para cada tabela
-        for j in range(1, 61):
+        # Gerar linhas para cada tabela (quantidade baseada no valor extraído)
+        for j in range(1, quantidade_linhas + 1):
             row = etree.SubElement(rows, "Row")
+            # Adicionar atributo IsCurrentRow="True" apenas na primeira linha
+            if j == 1:
+                row.set("IsCurrentRow", "True")
+            
             row_fields = etree.SubElement(row, "Fields")
             
-            # Adicionar o campo de resultado com valor decimal aleatório
-            valor_decimal = round(random.uniform(10, 100), 2)
+            # Adicionar o campo de resultado com valor decimal aleatório entre 1,0 e 2,1
+            valor_decimal = round(random.uniform(1.0, 2.1), 1)
             adicionar_campo(row_fields, f"{i}RESULTADO_TESTEELETRICO", valor_decimal)
     
     # Adicionar campos adicionais do ReturnValueV2
-    etree.SubElement(return_value, "ShortText").text = "DADOS GERADOS COM SUCESSO"
+    etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
     etree.SubElement(return_value, "LongText")
-    etree.SubElement(return_value, "Value").text = "1"
+    etree.SubElement(return_value, "Value").text = "58"
     
     # Gerar XML com declaração e encoding utf-16
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
@@ -61,12 +86,34 @@ def gerar_resposta_xml():
     
     return xml_str
 
-@app.route('/dados_sempre', methods=['POST'])
+
 def sempre_sistema():
     """Endpoint para processar a requisição e retornar dados do formulário"""
     try:
-        # Gera a resposta XML
-        xml_str = gerar_resposta_xml()
+        # Extrai o XML da requisição
+        xml_data = extract_xml_from_request()
+        
+        # Define um valor padrão para quantidade_linhas
+        quantidade_linhas = 60  # Valor padrão
+        
+        # Se conseguiu extrair o XML, tenta obter o valor de BATERIA_QUANTIDADE
+        if xml_data:
+            try:
+                # Parse do XML
+                root = etree.fromstring(xml_data.encode("utf-8"))
+                
+                # Extração do valor do campo BATERIA_QUANTIDADE
+                bateria_quantidade = root.findtext('BATERIA_QUANTIDADE')
+                
+                # Converter para inteiro se existir
+                if bateria_quantidade is not None:
+                    quantidade_linhas = int(bateria_quantidade)
+            except:
+                # Em caso de erro no parsing, mantém o valor padrão
+                pass
+        
+        # Gera a resposta XML com a quantidade de linhas especificada
+        xml_str = gerar_resposta_xml(quantidade_linhas)
         return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
     except Exception as e:
         # Em caso de erro, retorna uma mensagem simples
