@@ -12,6 +12,7 @@ from funcao_unica import consultar_peso_unico
 from encaixotar import encaixotar_v3
 from teste_caixa import encaixotar_v2
 from table_estatica import encaixotar_v4
+from dados_sempre import sempre_sistema
 
 load_dotenv()
 
@@ -32,6 +33,8 @@ app.add_url_rule("/funcao_unica", methods=['POST'], view_func=consultar_peso_uni
 app.add_url_rule("/encaixotar", methods=['POST'], view_func=encaixotar_v3)
 app.add_url_rule("/teste_caixa", methods=['POST'], view_func=encaixotar_v2)
 app.add_url_rule("/table_estatica", methods=['POST'], view_func=encaixotar_v4)
+app.add_url_rule("/dados_sempre", methods=['POST'], view_func=sempre_sistema)
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
