@@ -8,7 +8,7 @@ def adicionar_campo(parent, field_id, value):
     """Adiciona um campo ao XML."""
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = str(value)
+    etree.SubElement(field, "Value").text = f"{float(value):.1f}"
 
 def extract_xml_from_request():
     """Extrai o XML da requisição de várias fontes possíveis"""
