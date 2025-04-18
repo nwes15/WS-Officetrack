@@ -8,7 +8,13 @@ def adicionar_campo(parent, field_id, value):
     """Adiciona um campo ao XML."""
     field = etree.SubElement(parent, "Field")
     etree.SubElement(field, "ID").text = field_id
-    etree.SubElement(field, "Value").text = f"{float(value):.1f}"
+    # Garante string com vírgula como separador decimal
+    if isinstance(value, float):
+        value_str = str(round(value, 2)).replace('.', ',')
+    else:
+        # Se for string ou int, converte normalmente
+        value_str = str(value).replace('.', ',')
+    etree.SubElement(field, "Value").text = value_str
 
 def extract_xml_from_request():
     """Extrai o XML da requisição de várias fontes possíveis"""
