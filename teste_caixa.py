@@ -54,7 +54,7 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
     """
     Gera ResponseV2 usando lxml, preservando a estrutura original do XML de entrada,
     atualizando apenas a linha marcada como IsCurrentRow="True" na tabela correta e
-    organizando a resposta no formato correto.
+    organizando a resposta no formato correto (campos fixos seguidos pela tabela).
     """
     logging.debug(f"Gerando resposta XML com lxml para balanca '{balanca_id}'")
 
@@ -150,48 +150,22 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
         return_value_v2 = etree.SubElement(root_response, "ReturnValueV2")
         fields_element = etree.SubElement(return_value_v2, "Fields")
 
-        # Campos fixos (exemplo - adapte conforme necessário)
-        station_id = etree.SubElement(fields_element, "Field")
-        id_element = etree.SubElement(station_id, "ID")
-        id_element.text = "StationID"
-        override_element = etree.SubElement(station_id, "OverrideData")
-        override_element.text = "0"
-        value_element = etree.SubElement(station_id, "Value")
-        value_element.text = "703"  # Valor de exemplo - adapte conforme necessário
+        # Adiciona os campos fixos *antes* da tabela
+        # Adapte os XPaths para extrair os valores corretos do XML de entrada
+        def add_field(parent, id_text, xpath):
+            field_element = etree.SubElement(parent, "Field")
+            id_element = etree.SubElement(field_element, "ID")
+            id_element.text = id_text
+            value_element = etree.SubElement(field_element, "Value")
+            element = root_form.find(xpath)
+            value_element.text = element.text if element is not None else ""
+            override_element = etree.SubElement(field_element, "OverrideData")
+            override_element.text = "0"  # Valor padrão
 
-        cn = etree.SubElement(fields_element, "Field")
-        id_element_cn = etree.SubElement(cn, "ID")
-        id_element_cn.text = "CN"
-        override_element_cn = etree.SubElement(cn, "OverrideData")
-        override_element_cn.text = "0"
-        value_element_cn = etree.SubElement(cn, "Value")
-        value_element_cn.text = "ה.ט אשיב )חירייה("  # Valor de exemplo - adapte
+        add_field(fields_element, "Test1", "./Employee/EmployeeNumber")  # Adapte o XPath
+        add_field(fields_element, "Num1", "./Guid")  # Adapte o XPath
 
-        vc = etree.SubElement(fields_element, "Field")
-        id_element_vc = etree.SubElement(vc, "ID")
-        id_element_vc.text = "VC"
-        override_element_vc = etree.SubElement(vc, "OverrideData")
-        override_element_vc.text = "0"
-        value_element_vc = etree.SubElement(vc, "Value")
-        value_element_vc.text = "0"
-
-        vc2 = etree.SubElement(fields_element, "Field")
-        id_element_vc2 = etree.SubElement(vc2, "ID")
-        id_element_vc2.text = "VC2"
-        override_element_vc2 = etree.SubElement(vc2, "OverrideData")
-        override_element_vc2.text = "0"
-        value_element_vc2 = etree.SubElement(vc2, "Value")
-        value_element_vc2.text = "17"
-
-        date = etree.SubElement(fields_element, "Field")
-        id_element_date = etree.SubElement(date, "ID")
-        id_element_date.text = "Date"
-        override_element_date = etree.SubElement(date, "OverrideData")
-        override_element_date.text = "0"
-        value_element_date = etree.SubElement(date, "Value")
-        value_element_date.text = "21/04/2025 05:33"
-
-        # Adiciona a tabela modificada
+        # Adiciona a tabela modificada *depois* dos campos fixos
         fields_element.append(tabela_element)
 
         short_text_element = etree.SubElement(return_value_v2, "ShortText")
@@ -203,6 +177,7 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
         # Garante a declaração XML e codificação UTF-16
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
         xml_string = etree.tostring(root_response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+        # Codifica a string final para UTF-16
         xml_final = xml_declaration + xml_string
 
         logging.debug("XML de Resposta (lxml, UTF-16):\n%s", xml_final)
