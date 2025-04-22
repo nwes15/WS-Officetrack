@@ -260,3 +260,63 @@ def encaixotar_v2():
     except Exception as e:
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
         return gerar_erro_xml(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
+    
+def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
+    """
+    Gera um XML de resposta usando um template de string formatada.
+    Esta função é usada como fallback quando não se encontra a tabela no XML original.
+    """
+    logging.debug(f"Gerando resposta com template para balanca '{balanca_id}'")
+    
+    # Determina IDs
+    tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
+    peso_id_resp = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
+    pesobalanca_id_resp = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
+    
+    # Cria o template XML
+    xml_template = f'''<?xml version="1.0" encoding="utf-16"?>
+<ResponseV2 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <MessageV2>
+    <Text>Consulta realizada com sucesso.</Text>
+  </MessageV2>
+  <ReturnValueV2>
+    <Fields>
+      <TableField>
+        <ID>{tabela_id_resp}</ID>
+        <OverrideData>1</OverrideData>
+        <Rows>
+          <Row IsCurrentRow="True">
+            <Fields>
+              <Field>
+                <ID>{tstpeso_id}</ID>
+                <OverrideData>1</OverrideData>
+                <Value>{tstpeso_valor_usado}</Value>
+              </Field>
+              <Field>
+                <ID>{peso_id_resp}</ID>
+                <OverrideData>1</OverrideData>
+                <Value>{peso_novo}</Value>
+              </Field>
+              <Field>
+                <ID>{pesobalanca_id_resp}</ID>
+                <OverrideData>1</OverrideData>
+                <Value>{pesobalanca_novo}</Value>
+              </Field>
+              <Field>
+                <ID>WS</ID>
+                <OverrideData>1</OverrideData>
+                <Value>Pressione Lixeira para nova consulta</Value>
+              </Field>
+            </Fields>
+          </Row>
+        </Rows>
+      </TableField>
+    </Fields>
+    <ShortText>Pressione Lixeira para nova consulta</ShortText>
+    <LongText/>
+    <Value>17</Value>
+  </ReturnValueV2>
+</ResponseV2>'''
+    
+    logging.debug("XML de Resposta com template (UTF-16):\n%s", xml_template)
+    return Response(xml_template.encode("utf-16"), content_type="application/xml; charset=utf-16")
