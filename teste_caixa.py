@@ -1,9 +1,9 @@
 from flask import Flask, request, Response
-from utils.gerar_erro import gerar_erro_xml
 from lxml import etree
 import random
 import logging
 from io import BytesIO
+
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
@@ -80,7 +80,6 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
             pesobalanca = formatar_numero()
         return peso, pesobalanca
 
-# --- Nova Função de Resposta Preservando Estrutura ---
 def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
     """
     Gera ResponseV2 preservando a estrutura original do XML,
@@ -231,7 +230,7 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
         logging.exception("Erro ao gerar resposta preservando estrutura")
         return gerar_erro_xml_padrao(f"Erro ao processar XML: {str(e)}", "Erro Processamento", 500)
 
-# --- Função Principal ---
+
 def encaixotar_v2():
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
     # 1. Obtenção Robusta do XML
@@ -262,22 +261,22 @@ def encaixotar_v2():
                 xml_data_bytes = request.data
                 logging.info("XML obtido de request.data (Latin-1).")
             except UnicodeDecodeError:
-                return gerar_erro_xml("Encoding inválido.", "Erro Encoding", 400)
+                return gerar_erro_xml_padrao("Encoding inválido.", "Erro Encoding", 400)
     
     if not xml_data_bytes and xml_data_str:
         try:
             xml_data_bytes = xml_data_str.encode('utf-8')
         except Exception as e:
-            return gerar_erro_xml(f"Erro codificando form data: {e}", "Erro Encoding", 500)
+            return gerar_erro_xml_padrao(f"Erro codificando form data: {e}", "Erro Encoding", 500)
     
     if not xml_data_bytes:
-        return gerar_erro_xml("XML não encontrado.", "Erro Input", 400)
+        return gerar_erro_xml_padrao("XML não encontrado.", "Erro Input", 400)
     
     try:
         # 2. Obter parâmetro 'balanca'
         balanca = request.args.get('balanca', 'balanca1').lower()
         if balanca not in ["balanca1", "balanca2"]:
-            return gerar_erro_xml("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+            return gerar_erro_xml_padrao("Parâmetro 'balanca' inválido.", "Erro Param", 400)
         
         # 3. Extrair TSTPESO (da linha 'atual')
         tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
@@ -300,4 +299,4 @@ def encaixotar_v2():
     
     except Exception as e:
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
-        return gerar_erro_xml(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
+        return gerar_erro_xml_padrao(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
