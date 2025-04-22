@@ -164,19 +164,24 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
                     etree.SubElement(field, "OverrideData").text = "1"
                     etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
                 else:
-                    # Para linhas não-atuais, copiar os campos originais
+                    # Para linhas não-atuais, copiar exatamente os campos originais sem adicionar OverrideData
                     for field_original in row_original.xpath(".//Field"):
                         field = etree.SubElement(row_fields, "Field")
-                        field_id = field_original.xpath("ID")[0].text if field_original.xpath("ID") else ""
-                        etree.SubElement(field, "ID").text = field_id
                         
-                        # Copiar OverrideData se existir
-                        if field_original.xpath("OverrideData"):
-                            etree.SubElement(field, "OverrideData").text = field_original.xpath("OverrideData")[0].text
+                        # Copiar ID
+                        for id_elem in field_original.xpath("ID"):
+                            id_elem_copy = etree.SubElement(field, "ID")
+                            id_elem_copy.text = id_elem.text
                         
-                        # Copiar valor original
-                        if field_original.xpath("Value"):
-                            etree.SubElement(field, "Value").text = field_original.xpath("Value")[0].text
+                        # Copiar OverrideData apenas se existir no original
+                        for override_elem in field_original.xpath("OverrideData"):
+                            override_elem_copy = etree.SubElement(field, "OverrideData")
+                            override_elem_copy.text = override_elem.text
+                        
+                        # Copiar Value
+                        for value_elem in field_original.xpath("Value"):
+                            value_elem_copy = etree.SubElement(field, "Value")
+                            value_elem_copy.text = value_elem.text
         else:
             # Se não encontrou a tabela, criar uma nova com apenas a linha atual
             tabela = etree.SubElement(fields, "TableField")
@@ -229,6 +234,7 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
     except Exception as e:
         logging.exception("Erro ao gerar resposta preservando estrutura")
         return gerar_erro_xml_padrao(f"Erro ao processar XML: {str(e)}", "Erro Processamento", 500)
+
 
 
 def encaixotar_v2():
