@@ -4,7 +4,6 @@ import random
 import logging
 from io import BytesIO
 import copy
-from utils import gerar_erro_xml, gerar_resposta_string_template
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
@@ -236,7 +235,7 @@ def encaixotar_v2():
         # 2. Obter parâmetro 'balanca'
         balanca = request.args.get('balanca', 'balanca1').lower()
         if balanca not in ["balanca1", "balanca2"]:
-            return gerar_erro_xml("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+            return gerar_erro_xml_padrao("Parâmetro 'balanca' inválido.", "Erro Param", 400)
         
         # 3. Extrair TSTPESO (da linha 'atual')
         tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
@@ -259,7 +258,7 @@ def encaixotar_v2():
     
     except Exception as e:
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
-        return gerar_erro_xml(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
+        return gerar_erro_xml_padrao(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
     
 def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
     """
