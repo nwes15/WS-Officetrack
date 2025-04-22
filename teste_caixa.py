@@ -279,38 +279,42 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
 
 def encaixotar_v2():
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
+    
     # 1. Obtenção Robusta do XML
-    content_type = request.headers.get("Content-Type", "").lower()
-    xml_data_str = None
     xml_data_bytes = None
     
-    # Tenta obter o XML de várias fontes possíveis
-    if 'form' in content_type.lower() and request.form:
-        for name in ["TextXML", "textxml", "XMLData", "xmldata", "xml"]:
-            if name in request.form:
-                xml_data_str = request.form.get(name)
-                break
-        if not xml_data_str and request.form:
-            first_key = next(iter(request.form))
-            xml_data_str = request.form.get(first_key)
-        if xml_data_str:
-            logging.info("XML obtido de request.form.")
+    # Primeiro tenta obter do request.data
+    if request.data:
+        xml_data_bytes = request.data
+        logging.info("XML obtido de request.data")
+    else:
+        # Se não tem request.data, tenta obter do request.form
+        if request.form:
+            # Verifica todos os possíveis nomes de campos que podem conter o XML
+            possible_fields = ["TextXML", "textxml", "XMLData", "xmldata", "xml", "data"]
+            for field in possible_fields:
+                if field in request.form:
+                    xml_data_str = request.form[field]
+                    try:
+                        xml_data_bytes = xml_data_str.encode('utf-8')
+                        logging.info(f"XML obtido de request.form['{field}']")
+                        break
+                    except Exception as e:
+                        logging.warning(f"Erro ao codificar campo '{field}': {str(e)}")
+            
+            # Se não encontrou nos campos conhecidos, pega o primeiro valor do form
+            if xml_data_bytes is None and request.form:
+                first_key = next(iter(request.form))
+                try:
+                    xml_data_str = request.form[first_key]
+                    xml_data_bytes = xml_data_str.encode('utf-8')
+                    logging.info(f"XML obtido do primeiro campo do form: '{first_key}'")
+                except Exception as e:
+                    logging.warning(f"Erro ao codificar primeiro campo '{first_key}': {str(e)}")
     
-    if not xml_data_str and request.data:
-        try:
-            xml_data_bytes = request.data
-            xml_data_str = xml_data_bytes.decode('utf-8')
-            logging.info("XML obtido de request.data (UTF-8).")
-        except UnicodeDecodeError:
-            try:
-                xml_data_str = request.data.decode('latin-1')
-                xml_data_bytes = request.data
-                logging.info("XML obtido de request.data (Latin-1).")
-            except UnicodeDecodeError:
-                return gerar_erro_xml_padrao("Encoding inválido.", "Erro Encoding", 400)
-    
-    if not xml_data_bytes:
-        return gerar_erro_xml_padrao("XML não encontrado.", "Erro Input", 400)
+    if xml_data_bytes is None:
+        logging.error("Nenhum XML encontrado na requisição")
+        return gerar_erro_xml_padrao("XML não encontrado na requisição.", "Erro Input", 400)
     
     try:
         # 2. Obter parâmetro 'balanca'
