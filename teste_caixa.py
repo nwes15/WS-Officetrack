@@ -3,6 +3,7 @@ from lxml import etree
 import random
 import logging
 from io import BytesIO
+from utils.gerar_erro import gerar_erro_xml
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
