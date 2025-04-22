@@ -84,10 +84,12 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
               </Field>
               <Field>
                 <ID>{peso_id_resp}</ID>
+                <OverrideData>1</OverrideData>
                 <Value>{peso_novo}</Value>
               </Field>
               <Field>
                 <ID>{pesobalanca_id_resp}</ID>
+                <OverrideData>1</OverrideData>
                 <Value>{pesobalanca_novo}</Value>
               </Field>
             </Fields>
