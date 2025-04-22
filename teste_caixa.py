@@ -3,7 +3,6 @@ from lxml import etree
 import random
 import logging
 from io import BytesIO
-from utils.gerar_erro import gerar_erro_xml
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
@@ -177,9 +176,11 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
         value_element_rv = etree.SubElement(return_value_v2, "Value")
         value_element_rv.text = "17"
 
-        # Garante a declaração XML e codificação UTF-16
+        # Garante a declaração XML
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
-        xml_string = etree.tostring(root_response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+
+        # Transforma a árvore XML em uma string, com indentação e quebras de linha
+        xml_string = etree.tostring(root_response, encoding="utf-16", xml_declaration=False, pretty_print=True).decode("utf-16")
 
         # Codifica a string final para UTF-16
         xml_final = xml_declaration + xml_string
