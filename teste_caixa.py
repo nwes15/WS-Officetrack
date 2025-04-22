@@ -59,6 +59,8 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
     logging.debug(f"Gerando resposta XML com lxml para balanca '{balanca_id}'")
 
     try:
+        logging.debug("XML de entrada:\n%s", xml_data_bytes.decode('utf-8'))  # Imprime o XML de entrada
+
         parser = etree.XMLParser(recover=True)
         tree = etree.parse(BytesIO(xml_data_bytes), parser)
         root = tree.getroot()
@@ -70,6 +72,7 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
 
         # Localiza a tabela alvo
         xpath_tabela = f".//TableField[Id='{tabela_id_resp}']"
+        logging.debug(f"XPath da tabela: {xpath_tabela}")
         tabela_elements = root.xpath(xpath_tabela)
 
         if not tabela_elements:
@@ -151,6 +154,9 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
 
         return Response(xml_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
+    except etree.XMLSyntaxError as e:
+        logging.exception("Erro de sintaxe XML")
+        return gerar_erro_xml_padrao(f"Erro de sintaxe XML: {str(e)}", "Erro XML")
     except Exception as e:
         logging.exception("Erro ao gerar XML com lxml")
         return gerar_erro_xml_padrao(f"Erro ao processar XML: {str(e)}", "Erro XML")
