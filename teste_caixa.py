@@ -3,6 +3,7 @@ from lxml import etree
 import random
 import logging
 from io import BytesIO
+from utils.gerar_erro import gerar_erro_xml
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
@@ -92,38 +93,49 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
                             value_element = etree.SubElement(field, "Value")
                         value_element.text = tstpeso_valor_usado
                         override_data_element = field.find("OverrideData")
+                        if override_data_element is None:
+                            override_data_element = etree.SubElement(field, "OverrideData")
                         override_data_element.text = "1"
-
                     elif field_id == peso_id_resp:
-                        override_data_element = field.find("OverrideData")
                         value_element = field.find("Value")
                         if value_element is None:
                             value_element = etree.SubElement(field, "Value")
                         value_element.text = peso_novo
+                        override_data_element = field.find("OverrideData")
+                        if override_data_element is None:
+                            override_data_element = etree.SubElement(field, "OverrideData")
                         override_data_element.text = "1"
 
                     elif field_id == pesobalanca_id_resp:
-                        override_data_element = field.find("OverrideData")
                         value_element = field.find("Value")
                         if value_element is None:
                             value_element = etree.SubElement(field, "Value")
                         value_element.text = pesobalanca_novo
+                        override_data_element = field.find("OverrideData")
+                        if override_data_element is None:
+                            override_data_element = etree.SubElement(field, "OverrideData")
                         override_data_element.text = "1"
                     elif field_id == "WS":
-                        override_data_element = field.find("OverrideData")
                         value_element = field.find("Value")
                         if value_element is None:
                             value_element = etree.SubElement(field, "Value")
                         value_element.text = "Pressione Lixeira para nova consulta"
+                        override_data_element = field.find("OverrideData")
+                        if override_data_element is None:
+                            override_data_element = etree.SubElement(field, "OverrideData")
                         override_data_element.text = "1"
                     else:
                         override_data_element = field.find("OverrideData")
+                        if override_data_element is None:
+                            override_data_element = etree.SubElement(field, "OverrideData")
                         override_data_element.text = "0"
 
             else:  # Not current row
                 # Certifica-se de que OverrideData esteja definido como 0 para as outras linhas
                 for field in row.xpath("./Fields/Field"):
                     override_data_element = field.find("OverrideData")
+                    if override_data_element is None:
+                        override_data_element = etree.SubElement(field, "OverrideData")
                     override_data_element.text = "0"
 
         # Garante a declaração XML e codificação UTF-16
