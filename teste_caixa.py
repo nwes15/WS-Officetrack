@@ -156,14 +156,17 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
             field_element = etree.SubElement(parent, "Field")
             id_element = etree.SubElement(field_element, "ID")
             id_element.text = id_text
+            override_element = etree.SubElement(field_element, "OverrideData")
+            override_element.text = "0"
             value_element = etree.SubElement(field_element, "Value")
             element = root_form.find(xpath)
             value_element.text = element.text if element is not None else ""
-            override_element = etree.SubElement(field_element, "OverrideData")
-            override_element.text = "0"  # Valor padrão
 
-        add_field(fields_element, "Test1", "./Employee/EmployeeNumber")  # Adapte o XPath
-        add_field(fields_element, "Num1", "./Guid")  # Adapte o XPath
+        add_field(fields_element, "StationID", "./Employee/EmployeeNumber")  # Adapte o XPath
+        add_field(fields_element, "CN", "./Guid")  # Adapte o XPath
+        add_field(fields_element, "VC", "./Id")  # Adapte o XPath
+        add_field(fields_element, "VC2", "./Employee/EmployeeNumber")  # Adapte o XPath
+        add_field(fields_element, "Date", "./Guid")  # Adapte o XPath
 
         # Adiciona a tabela modificada *depois* dos campos fixos
         fields_element.append(tabela_element)
@@ -177,12 +180,15 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
         # Garante a declaração XML e codificação UTF-16
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
         xml_string = etree.tostring(root_response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+
         # Codifica a string final para UTF-16
         xml_final = xml_declaration + xml_string
 
         logging.debug("XML de Resposta (lxml, UTF-16):\n%s", xml_final)
 
-        return Response(xml_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
+        # Cria a resposta Flask com o tipo de conteúdo e codificação corretos
+        response = Response(xml_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
+        return response
 
     except etree.XMLSyntaxError as e:
         logging.exception("Erro de sintaxe XML")
@@ -222,7 +228,7 @@ def encaixotar_v2():
         peso_novo, pesobalanca_novo = gerar_valores_peso(tstpeso_valor_extraido, balanca)
 
         # 5. Gerar Resposta XML usando lxml e preservando o XML original
-        return gerar_resposta_xml(
+        response = gerar_resposta_xml(
             xml_data_bytes=xml_data_bytes,
             peso_novo=peso_novo,
             pesobalanca_novo=pesobalanca_novo,
@@ -230,6 +236,7 @@ def encaixotar_v2():
             tstpeso_id=tstpeso_id_a_usar,
             tstpeso_valor_usado=tstpeso_valor_extraido
         )
+        return response
 
     except Exception as e:
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
