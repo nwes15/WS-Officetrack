@@ -3,6 +3,8 @@ from lxml import etree
 import random
 import logging
 from io import BytesIO
+import copy
+from utils import gerar_erro_xml, gerar_resposta_string_template
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
@@ -80,6 +82,8 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
             pesobalanca = formatar_numero()
         return peso, pesobalanca
 
+import copy
+
 def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
     """
     Gera ResponseV2 preservando a estrutura original do XML,
@@ -108,6 +112,15 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
         
         if tabelas_resp:
             tabela = tabelas_resp[0]
+            
+            # Adicionar OverrideData à tabela se não existir
+            override_elem = tabela.find("OverrideData")
+            if override_elem is None:
+                id_elem = tabela.find("ID")
+                if id_elem is not None:
+                    override_elem = etree.Element("OverrideData")
+                    override_elem.text = "1"
+                    id_elem.addnext(override_elem)
             
             # Encontrar a linha atual
             linha_atual = tabela.xpath(".//Row[@IsCurrentRow='True']")
@@ -145,17 +158,11 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
                     etree.SubElement(field, "ID").text = "WS"
                     etree.SubElement(field, "OverrideData").text = "1"
                     etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
-            
-            # Atualizar OverrideData da tabela
-            override_elem = tabela.find("OverrideData")
-            if override_elem is None:
-                id_elem = tabela.find("ID")
-                if id_elem is not None:
-                    override_elem = etree.Element("OverrideData")
-                    override_elem.text = "1"
-                    id_elem.addnext(override_elem)
-            else:
-                override_elem.text = "1"
+        else:
+            # Se não encontrou a tabela, criar uma resposta com template padrão
+            return gerar_resposta_string_template(
+                peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado
+            )
         
         # Atualizar mensagem e outros elementos
         msg_elem = response_root.find(".//MessageV2/Text")
@@ -181,7 +188,6 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
     except Exception as e:
         logging.exception("Erro ao gerar resposta preservando estrutura")
         return gerar_erro_xml_padrao(f"Erro ao processar XML: {str(e)}", "Erro Processamento", 500)
-
 
 
 
@@ -230,7 +236,7 @@ def encaixotar_v2():
         # 2. Obter parâmetro 'balanca'
         balanca = request.args.get('balanca', 'balanca1').lower()
         if balanca not in ["balanca1", "balanca2"]:
-            return gerar_erro_xml_padrao("Parâmetro 'balanca' inválido.", "Erro Param", 400)
+            return gerar_erro_xml("Parâmetro 'balanca' inválido.", "Erro Param", 400)
         
         # 3. Extrair TSTPESO (da linha 'atual')
         tstpeso_id_a_usar = "TSTPESO1" if balanca == "balanca1" else "TSTPESO2"
@@ -253,4 +259,4 @@ def encaixotar_v2():
     
     except Exception as e:
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
-        return gerar_erro_xml_padrao(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
+        return gerar_erro_xml(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
