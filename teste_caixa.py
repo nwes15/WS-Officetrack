@@ -81,6 +81,169 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
             pesobalanca = formatar_numero()
         return peso, pesobalanca
 
+def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
+    """
+    Gera ResponseV2 preservando a estrutura original do XML,
+    atualizando apenas os campos na linha marcada como IsCurrentRow="True"
+    """
+    logging.debug(f"Gerando resposta preservando estrutura para balanca '{balanca_id}'")
+    
+    try:
+        # Determina IDs
+        tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
+        peso_id_resp = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
+        pesobalanca_id_resp = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
+        
+        # Parse do XML original
+        parser = etree.XMLParser(recover=True)
+        tree = etree.parse(BytesIO(xml_bytes), parser)
+        root = tree.getroot()
+        
+        # Criar a estrutura base da resposta
+        response = etree.Element("ResponseV2", nsmap={
+            'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+            'xsd': 'http://www.w3.org/2001/XMLSchema'
+        })
+        
+        # Adicionar MessageV2
+        message = etree.SubElement(response, "MessageV2")
+        etree.SubElement(message, "Text").text = "Consulta realizada com sucesso."
+        
+        # Adicionar ReturnValueV2
+        return_value = etree.SubElement(response, "ReturnValueV2")
+        fields = etree.SubElement(return_value, "Fields")
+        
+        # Encontrar a tabela no XML original
+        xpath_tabela = f".//TableField[ID='{tabela_id_resp}']"
+        tabelas_originais = root.xpath(xpath_tabela)
+        
+        if tabelas_originais:
+            # Copiar a tabela original
+            tabela_original = tabelas_originais[0]
+            tabela = etree.SubElement(fields, "TableField")
+            
+            # Copiar atributos da tabela original (ID e OverrideData)
+            tabela.set("ID", tabela_original.get("ID"))  # Copia o atributo ID
+           # tabelaaa.set("OverrideData", tabela_original.get("OverrideData"))
+
+            
+            # Copiar as linhas
+            rows = etree.SubElement(tabela, "Rows")
+            
+            # Processar cada linha da tabela original
+            for row_original in tabela_original.xpath(".//Row"):
+                row = etree.SubElement(rows, "Row")
+                
+                # Verificar se é a linha atual
+                is_current = row_original.get("IsCurrentRow") == "True"
+                if is_current:
+                    row.set("IsCurrentRow", "True")
+                
+                # Adicionar campos
+                row_fields = etree.SubElement(row, "Fields")
+                
+                # Se for a linha atual, atualizar com os novos valores
+                if is_current:
+                    # Campo TSTPESO
+                    field = etree.SubElement(row_fields, "Field")
+                    etree.SubElement(field, "ID").text = tstpeso_id
+                    etree.SubElement(field, "OverrideData").text = "1"
+                    etree.SubElement(field, "Value").text = tstpeso_valor_usado
+                    
+                    # Campo PESO
+                    field = etree.SubElement(row_fields, "Field")
+                    etree.SubElement(field, "ID").text = peso_id_resp
+                    etree.SubElement(field, "OverrideData").text = "1"
+                    etree.SubElement(field, "Value").text = peso_novo
+                    
+                    # Campo PESOBALANCA
+                    field = etree.SubElement(row_fields, "Field")
+                    etree.SubElement(field, "ID").text = pesobalanca_id_resp
+                    etree.SubElement(field, "OverrideData").text = "1"
+                    etree.SubElement(field, "Value").text = pesobalanca_novo
+                    
+                    # Campo WS (mensagem)
+                    field = etree.SubElement(row_fields, "Field")
+                    etree.SubElement(field, "ID").text = "WS"
+                    etree.SubElement(field, "OverrideData").text = "1"
+                    etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
+                else:
+                     # Para linhas não-atuais, copiar os campos originais
+                     for field_original in row_original.xpath(".//Field"):
+                        field = etree.SubElement(row_fields, "Field")
+                        
+                        # Copiar ID
+                        id_element = field_original.find("ID")
+                        if id_element is not None:
+                           id_copy = etree.SubElement(field, "ID")
+                           id_copy.text = id_element.text
+                           
+                        # Copiar OverrideData apenas se existir
+                        override_element = field_original.find("OverrideData")
+                        if override_element is not None:
+                           override_copy = etree.SubElement(field, "OverrideData")
+                           override_copy.text = override_element.text
+                           
+                        # Copiar Value
+                        value_element = field_original.find("Value")
+                        if value_element is not None:
+                           value_copy = etree.SubElement(field, "Value")
+                           value_copy.text = value_element.text
+
+        else:
+            # Se não encontrou a tabela, criar uma nova com apenas a linha atual
+            tabela = etree.SubElement(fields, "TableField")
+            etree.SubElement(tabela, "ID").text = tabela_id_resp
+           # etree.SubElement(tabela, "OverrideData").text = "1"
+            
+            rows = etree.SubElement(tabela, "Rows")
+            row = etree.SubElement(rows, "Row")
+            row.set("IsCurrentRow", "True")
+            
+            row_fields = etree.SubElement(row, "Fields")
+            
+            # Campo TSTPESO
+            field = etree.SubElement(row_fields, "Field")
+            etree.SubElement(field, "ID").text = tstpeso_id
+            etree.SubElement(field, "OverrideData").text = "1"
+            etree.SubElement(field, "Value").text = tstpeso_valor_usado
+            
+            # Campo PESO
+            field = etree.SubElement(row_fields, "Field")
+            etree.SubElement(field, "ID").text = peso_id_resp
+            etree.SubElement(field, "OverrideData").text = "1"
+            etree.SubElement(field, "Value").text = peso_novo
+            
+            # Campo PESOBALANCA
+            field = etree.SubElement(row_fields, "Field")
+            etree.SubElement(field, "ID").text = pesobalanca_id_resp
+            etree.SubElement(field, "OverrideData").text = "1"
+            etree.SubElement(field, "Value").text = pesobalanca_novo
+            
+            # Campo WS (mensagem)
+            field = etree.SubElement(row_fields, "Field")
+            etree.SubElement(field, "ID").text = "WS"
+            etree.SubElement(field, "OverrideData").text = "1"
+            etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
+        
+        # Adicionar elementos restantes
+        etree.SubElement(return_value, "ShortText").text = "Pressione Lixeira para nova consulta"
+        etree.SubElement(return_value, "LongText")
+        etree.SubElement(return_value, "Value").text = "17"
+        
+        # Gerar a string XML final
+        xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
+        xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+        xml_str_final = xml_declaration + xml_body
+        
+        logging.debug("XML de Resposta preservando estrutura (UTF-16):\n%s", xml_str_final)
+        return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
+        
+    except Exception as e:
+        logging.exception("Erro ao gerar resposta preservando estrutura")
+        return gerar_erro_xml_padrao(f"Erro ao processar XML: {str(e)}", "Erro Processamento", 500)
+
+
 def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
     """
     Gera um XML de resposta usando um template de string formatada.
@@ -141,165 +304,6 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
     logging.debug("XML de Resposta com template (UTF-16):\n%s", xml_template)
     return Response(xml_template.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
-def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
-    """
-    Gera ResponseV2 preservando a estrutura original do XML,
-    atualizando apenas os campos na linha marcada como IsCurrentRow="True"
-    """
-    logging.debug(f"Gerando resposta preservando estrutura para balanca '{balanca_id}'")
-    
-    try:
-        # Determina IDs
-        tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
-        peso_id_resp = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
-        pesobalanca_id_resp = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
-        
-        # Parse do XML original
-        parser = etree.XMLParser(recover=True)
-        tree = etree.parse(BytesIO(xml_bytes), parser)
-        root = tree.getroot()
-        
-        # Verificar quantas linhas existem no XML original
-        xpath_tabela = f".//TableField[ID='{tabela_id_resp}']"
-        tabelas_originais = root.xpath(xpath_tabela)
-        
-        if tabelas_originais:
-            tabela_original = tabelas_originais[0]
-            linhas_originais = tabela_original.xpath(".//Row")
-            logging.debug(f"XML original contém {len(linhas_originais)} linhas")
-        
-        # Criar uma cópia do XML original para modificar
-        response_tree = copy.deepcopy(tree)
-        response_root = response_tree.getroot()
-        
-        # Encontrar a tabela no XML de resposta
-        tabelas_resp = response_root.xpath(xpath_tabela)
-        
-        if tabelas_resp:
-            tabela = tabelas_resp[0]
-            
-            # Adicionar OverrideData à tabela se não existir
-            override_elem = tabela.find("OverrideData")
-            if override_elem is None:
-                id_elem = tabela.find("ID")
-                if id_elem is not None:
-                    override_elem = etree.Element("OverrideData")
-                    override_elem.text = "1"
-                    id_elem.addnext(override_elem)
-            
-            # Encontrar a linha atual
-            linha_atual = tabela.xpath(".//Row[@IsCurrentRow='True']")
-            if linha_atual:
-                linha = linha_atual[0]
-                
-                # Atualizar os campos da linha atual
-                campos = linha.find("Fields")
-                if campos is not None:
-                    # Limpar campos existentes
-                    for child in list(campos):
-                        campos.remove(child)
-                    
-                    # Adicionar campos atualizados
-                    # Campo TSTPESO
-                    field = etree.SubElement(campos, "Field")
-                    etree.SubElement(field, "ID").text = tstpeso_id
-                    etree.SubElement(field, "OverrideData").text = "1"
-                    etree.SubElement(field, "Value").text = tstpeso_valor_usado
-                    
-                    # Campo PESO
-                    field = etree.SubElement(campos, "Field")
-                    etree.SubElement(field, "ID").text = peso_id_resp
-                    etree.SubElement(field, "OverrideData").text = "1"
-                    etree.SubElement(field, "Value").text = peso_novo
-                    
-                    # Campo PESOBALANCA
-                    field = etree.SubElement(campos, "Field")
-                    etree.SubElement(field, "ID").text = pesobalanca_id_resp
-                    etree.SubElement(field, "OverrideData").text = "1"
-                    etree.SubElement(field, "Value").text = pesobalanca_novo
-                    
-                    # Campo WS (mensagem)
-                    field = etree.SubElement(campos, "Field")
-                    etree.SubElement(field, "ID").text = "WS"
-                    etree.SubElement(field, "OverrideData").text = "1"
-                    etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
-            else:
-                logging.warning(f"Nenhuma linha marcada como atual encontrada na tabela {tabela_id_resp}")
-                # Se não encontrou linha atual, usar a primeira linha
-                primeira_linha = tabela.xpath(".//Row[1]")
-                if primeira_linha:
-                    linha = primeira_linha[0]
-                    linha.set("IsCurrentRow", "True")
-                    
-                    # Atualizar os campos da linha
-                    campos = linha.find("Fields")
-                    if campos is not None:
-                        # Limpar campos existentes
-                        for child in list(campos):
-                            campos.remove(child)
-                        
-                        # Adicionar campos atualizados
-                        # Campo TSTPESO
-                        field = etree.SubElement(campos, "Field")
-                        etree.SubElement(field, "ID").text = tstpeso_id
-                        etree.SubElement(field, "OverrideData").text = "1"
-                        etree.SubElement(field, "Value").text = tstpeso_valor_usado
-                        
-                        # Campo PESO
-                        field = etree.SubElement(campos, "Field")
-                        etree.SubElement(field, "ID").text = peso_id_resp
-                        etree.SubElement(field, "OverrideData").text = "1"
-                        etree.SubElement(field, "Value").text = peso_novo
-                        
-                        # Campo PESOBALANCA
-                        field = etree.SubElement(campos, "Field")
-                        etree.SubElement(field, "ID").text = pesobalanca_id_resp
-                        etree.SubElement(field, "OverrideData").text = "1"
-                        etree.SubElement(field, "Value").text = pesobalanca_novo
-                        
-                        # Campo WS (mensagem)
-                        field = etree.SubElement(campos, "Field")
-                        etree.SubElement(field, "ID").text = "WS"
-                        etree.SubElement(field, "OverrideData").text = "1"
-                        etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
-        else:
-            # Se não encontrou a tabela, criar uma resposta com template padrão
-            return gerar_resposta_string_template(
-                peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado
-            )
-        
-        # Atualizar mensagem e outros elementos
-        msg_elem = response_root.find(".//MessageV2/Text")
-        if msg_elem is not None:
-            msg_elem.text = "Consulta realizada com sucesso."
-        
-        short_text = response_root.find(".//ReturnValueV2/ShortText")
-        if short_text is not None:
-            short_text.text = "Pressione Lixeira para nova consulta"
-        
-        value_elem = response_root.find(".//ReturnValueV2/Value")
-        if value_elem is not None:
-            value_elem.text = "17"
-        
-        # Verificar quantas linhas existem no XML de resposta
-        tabelas_resp_final = response_root.xpath(xpath_tabela)
-        if tabelas_resp_final:
-            tabela_resp_final = tabelas_resp_final[0]
-            linhas_resp_final = tabela_resp_final.xpath(".//Row")
-            logging.debug(f"XML de resposta contém {len(linhas_resp_final)} linhas")
-        
-        # Gerar a string XML final
-        xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
-        xml_body = etree.tostring(response_root, encoding="utf-16", xml_declaration=False).decode("utf-16")
-        xml_str_final = xml_declaration + xml_body
-        
-        logging.debug("XML de Resposta preservando estrutura (UTF-16):\n%s", xml_str_final)
-        return Response(xml_str_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
-        
-    except Exception as e:
-        logging.exception("Erro ao gerar resposta preservando estrutura")
-        return gerar_erro_xml_padrao(f"Erro ao processar XML: {str(e)}", "Erro Processamento", 500)
-
 
 def encaixotar_v2():
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
@@ -332,12 +336,6 @@ def encaixotar_v2():
                 logging.info("XML obtido de request.data (Latin-1).")
             except UnicodeDecodeError:
                 return gerar_erro_xml_padrao("Encoding inválido.", "Erro Encoding", 400)
-    
-    if not xml_data_bytes and xml_data_str:
-        try:
-            xml_data_bytes = xml_data_str.encode('utf-8')
-        except Exception as e:
-            return gerar_erro_xml_padrao(f"Erro codificando form data: {e}", "Erro Encoding", 500)
     
     if not xml_data_bytes:
         return gerar_erro_xml_padrao("XML não encontrado.", "Erro Input", 400)
