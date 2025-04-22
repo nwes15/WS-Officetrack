@@ -3,14 +3,14 @@ from lxml import etree
 import random
 import logging
 from io import BytesIO
-from utils.gerar_erro import gerar_erro_xml
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 # --- Funções Auxiliares ---
 def gerar_erro_xml_padrao(mensagem, short_text="Erro", status_code=400):
     logging.error(f"Gerando erro: {mensagem}")
-    response = etree.Element("Form"); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = mensagem
+    nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance','xsd': 'http://www.w3.org/2001/XMLSchema'}
+    response = etree.Element("ResponseV2", nsmap=nsmap); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = mensagem
     return_value = etree.SubElement(response, "ReturnValueV2"); etree.SubElement(return_value, "Fields"); etree.SubElement(return_value, "ShortText").text = short_text; etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "0"
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'; xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16"); xml_str_final = xml_declaration + xml_body
     return Response(xml_str_final.encode("utf-16"), status=status_code, content_type="application/xml; charset=utf-16")
@@ -59,7 +59,7 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
     try:
         parser = etree.XMLParser(recover=True)
         tree = etree.parse(BytesIO(xml_data_bytes), parser)
-        root = tree.getroot()
+        root_form = tree.getroot() #Mudando nome da variavel root para root_form
 
         # Determina IDs
         tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
@@ -68,7 +68,7 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
 
         # Localiza a tabela alvo
         xpath_tabela = f".//TableField[Id='{tabela_id_resp}']"
-        tabela_elements = root.xpath(xpath_tabela)
+        tabela_elements = root_form.xpath(xpath_tabela) #Mudando root para root_form
 
         if not tabela_elements:
             logging.warning(f"Tabela '{tabela_id_resp}' não encontrada no XML de entrada.")
@@ -138,9 +138,29 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
                         override_data_element = etree.SubElement(field, "OverrideData")
                     override_data_element.text = "0"
 
+        # Cria o novo XML no formato <ResponseV2>
+        nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsd': 'http://www.w3.org/2001/XMLSchema'}
+        root_response = etree.Element("ResponseV2", nsmap=nsmap)
+        message_v2 = etree.SubElement(root_response, "MessageV2")
+        text_element = etree.SubElement(message_v2, "Text")
+        text_element.text = "Consulta realizada com sucesso."  # Mensagem padrão
+
+        return_value_v2 = etree.SubElement(root_response, "ReturnValueV2")
+        fields_element = etree.SubElement(return_value_v2, "Fields")
+
+        # Adiciona a tabela modificada ao novo XML
+        table_field_element = etree.SubElement(fields_element, "TableField")
+        table_field_element.append(tabela_element)  # Adiciona a tabela *modificada*
+
+        short_text_element = etree.SubElement(return_value_v2, "ShortText")
+        short_text_element.text = "Pressione Lixeira para nova consulta"
+        long_text_element = etree.SubElement(return_value_v2, "LongText")  # Pode deixar vazio
+        value_element = etree.SubElement(return_value_v2, "Value")
+        value_element.text = "17"  # Valor padrão
+
         # Garante a declaração XML e codificação UTF-16
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
-        xml_string = etree.tostring(root, encoding="utf-16", xml_declaration=False).decode("utf-16")
+        xml_string = etree.tostring(root_response, encoding="utf-16", xml_declaration=False).decode("utf-16")
         xml_final = xml_declaration + xml_string
 
         logging.debug("XML de Resposta (lxml, UTF-16):\n%s", xml_final)
@@ -165,11 +185,6 @@ def encaixotar_v2():
             if name in request.form: xml_data_str = request.form.get(name); break
         if not xml_data_str and request.form: first_key = next(iter(request.form)); xml_data_str = request.form.get(first_key)
         if xml_data_str: logging.info("XML obtido de request.form.")
-    if not xml_data_str and request.data:
-        try: xml_data_bytes = request.data; xml_data_str = xml_data_bytes.decode('utf-8'); logging.info("XML obtido de request.data (UTF-8).")
-        except UnicodeDecodeError:
-             try: xml_data_str = request.data.decode('latin-1'); xml_data_bytes = request.data; logging.info("XML obtido de request.data (Latin-1).")
-             except UnicodeDecodeError: return gerar_erro_xml("Encoding inválido.", "Erro Encoding", 400)
     if not xml_data_bytes and xml_data_str:
         try: xml_data_bytes = xml_data_str.encode('utf-8')
         except Exception as e: return gerar_erro_xml(f"Erro codificando form data: {e}", "Erro Encoding", 500)
