@@ -12,7 +12,7 @@ def gerar_erro_xml_padrao(mensagem, short_text="Erro", status_code=400):
     logging.error(f"Gerando erro: {mensagem}")
     nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance','xsd': 'http://www.w3.org/2001/XMLSchema'}
     response = etree.Element("ResponseV2", nsmap=nsmap); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = mensagem
-    return_value = etree.SubElement(response, "ReturnValueV2"); etree.SubElement(response, "Fields"); etree.SubElement(return_value, "ShortText").text = short_text; etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "0"
+    return_value = etree.SubElement(response, "ReturnValueV2"); etree.SubElement(return_value, "Fields"); etree.SubElement(return_value, "ShortText").text = short_text; etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "0"
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'; xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16"); xml_str_final = xml_declaration + xml_body
     return Response(xml_str_final.encode("utf-16"), status=status_code, content_type="application/xml; charset=utf-16")
 
@@ -52,15 +52,16 @@ def gerar_valores_peso(tstpeso_valor, balanca):
 # --- Função de Resposta com lxml ---
 def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
     """
-    Gera ResponseV2 usando lxml, preservando a estrutura original do XML de entrada e
-    atualizando apenas a linha marcada como IsCurrentRow="True" na tabela correta.
+    Gera ResponseV2 usando lxml, preservando a estrutura original do XML de entrada,
+    atualizando apenas a linha marcada como IsCurrentRow="True" na tabela correta e
+    organizando a resposta no formato correto.
     """
     logging.debug(f"Gerando resposta XML com lxml para balanca '{balanca_id}'")
 
     try:
         parser = etree.XMLParser(recover=True)
         tree = etree.parse(BytesIO(xml_data_bytes), parser)
-        root_form = tree.getroot() #Mudando nome da variavel root para root_form
+        root_form = tree.getroot()
 
         # Determina IDs
         tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
@@ -69,7 +70,7 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
 
         # Localiza a tabela alvo
         xpath_tabela = f".//TableField[Id='{tabela_id_resp}']"
-        tabela_elements = root_form.xpath(xpath_tabela) #Mudando root para root_form
+        tabela_elements = root_form.xpath(xpath_tabela)
 
         if not tabela_elements:
             logging.warning(f"Tabela '{tabela_id_resp}' não encontrada no XML de entrada.")
@@ -144,19 +145,60 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
         root_response = etree.Element("ResponseV2", nsmap=nsmap)
         message_v2 = etree.SubElement(root_response, "MessageV2")
         text_element = etree.SubElement(message_v2, "Text")
-        text_element.text = "Consulta realizada com sucesso."  # Mensagem padrão
+        text_element.text = "Consulta realizada com sucesso."
 
         return_value_v2 = etree.SubElement(root_response, "ReturnValueV2")
         fields_element = etree.SubElement(return_value_v2, "Fields")
 
-        # Adiciona a tabela modificada DIRETAMENTE aos Fields
+        # Campos fixos (exemplo - adapte conforme necessário)
+        station_id = etree.SubElement(fields_element, "Field")
+        id_element = etree.SubElement(station_id, "ID")
+        id_element.text = "StationID"
+        override_element = etree.SubElement(station_id, "OverrideData")
+        override_element.text = "0"
+        value_element = etree.SubElement(station_id, "Value")
+        value_element.text = "703"  # Valor de exemplo - adapte conforme necessário
+
+        cn = etree.SubElement(fields_element, "Field")
+        id_element_cn = etree.SubElement(cn, "ID")
+        id_element_cn.text = "CN"
+        override_element_cn = etree.SubElement(cn, "OverrideData")
+        override_element_cn.text = "0"
+        value_element_cn = etree.SubElement(cn, "Value")
+        value_element_cn.text = "ה.ט אשיב )חירייה("  # Valor de exemplo - adapte
+
+        vc = etree.SubElement(fields_element, "Field")
+        id_element_vc = etree.SubElement(vc, "ID")
+        id_element_vc.text = "VC"
+        override_element_vc = etree.SubElement(vc, "OverrideData")
+        override_element_vc.text = "0"
+        value_element_vc = etree.SubElement(vc, "Value")
+        value_element_vc.text = "0"
+
+        vc2 = etree.SubElement(fields_element, "Field")
+        id_element_vc2 = etree.SubElement(vc2, "ID")
+        id_element_vc2.text = "VC2"
+        override_element_vc2 = etree.SubElement(vc2, "OverrideData")
+        override_element_vc2.text = "0"
+        value_element_vc2 = etree.SubElement(vc2, "Value")
+        value_element_vc2.text = "17"
+
+        date = etree.SubElement(fields_element, "Field")
+        id_element_date = etree.SubElement(date, "ID")
+        id_element_date.text = "Date"
+        override_element_date = etree.SubElement(date, "OverrideData")
+        override_element_date.text = "0"
+        value_element_date = etree.SubElement(date, "Value")
+        value_element_date.text = "21/04/2025 05:33"
+
+        # Adiciona a tabela modificada
         fields_element.append(tabela_element)
 
         short_text_element = etree.SubElement(return_value_v2, "ShortText")
         short_text_element.text = "Pressione Lixeira para nova consulta"
-        long_text_element = etree.SubElement(return_value_v2, "LongText")  # Pode deixar vazio
-        value_element = etree.SubElement(return_value_v2, "Value")
-        value_element.text = "17"  # Valor padrão
+        long_text_element = etree.SubElement(return_value_v2, "LongText")
+        value_element_rv = etree.SubElement(return_value_v2, "Value")
+        value_element_rv.text = "17"
 
         # Garante a declaração XML e codificação UTF-16
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
