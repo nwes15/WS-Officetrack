@@ -307,20 +307,29 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
 
 def encaixotar_v2():
     logging.info(f"--- Nova Requisição {request.method} para /teste_caixa ---")
-    # 1. Obtenção Robusta do XML
     content_type = request.headers.get("Content-Type", "").lower()
     xml_data_str = None
     xml_data_bytes = None
-    
-    # Tenta obter o XML de várias fontes possíveis
+
+    logging.debug(f"Content-Type: {content_type}")  # Adicionado
+
     if 'form' in content_type.lower() and request.form:
+        logging.debug("Tentando ler request.form...")  # Adicionado
+        try:
+            request.get_data()  # Força a leitura dos dados da requisição
+            logging.debug(f"request.form após get_data(): {request.form}")  # Adicionado
+        except Exception as e:
+            logging.error(f"Erro ao ler request.get_data(): {e}") #Adicionado
+
         for name in ["TextXML", "textxml", "XMLData", "xmldata", "xml"]:
             if name in request.form:
                 xml_data_str = request.form.get(name)
+                logging.debug(f"XML encontrado em request.form[{name}]")
                 break
         if not xml_data_str and request.form:
             first_key = next(iter(request.form))
             xml_data_str = request.form.get(first_key)
+            logging.debug(f"XML encontrado na primeira chave de request.form: {first_key}")
         if xml_data_str:
             logging.info("XML obtido de request.form.")
     
