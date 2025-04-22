@@ -12,7 +12,7 @@ def gerar_erro_xml_padrao(mensagem, short_text="Erro", status_code=400):
     logging.error(f"Gerando erro: {mensagem}")
     nsmap = {'xsi': 'http://www.w3.org/2001/XMLSchema-instance','xsd': 'http://www.w3.org/2001/XMLSchema'}
     response = etree.Element("ResponseV2", nsmap=nsmap); message = etree.SubElement(response, "MessageV2"); etree.SubElement(message, "Text").text = mensagem
-    return_value = etree.SubElement(response, "ReturnValueV2"); etree.SubElement(return_value, "Fields"); etree.SubElement(return_value, "ShortText").text = short_text; etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "0"
+    return_value = etree.SubElement(response, "ReturnValueV2"); etree.SubElement(response, "Fields"); etree.SubElement(return_value, "ShortText").text = short_text; etree.SubElement(return_value, "LongText"); etree.SubElement(return_value, "Value").text = "0"
     xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'; xml_body = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16"); xml_str_final = xml_declaration + xml_body
     return Response(xml_str_final.encode("utf-16"), status=status_code, content_type="application/xml; charset=utf-16")
 
@@ -36,7 +36,7 @@ def extrair_tstpeso_da_tabela(xml_bytes, tabela_id_alvo, tstpeso_id_alvo):
         return "0"
     except Exception: logging.exception("Erro ao extrair TSTPESO"); return "0"
 
-def gerar_valores_peso(tstpeso_valor, balanca_id):
+def gerar_valores_peso(tstpeso_valor, balanca):
     def formatar_numero(): return "{:.2f}".format(random.uniform(0.5, 500)).replace('.', ',')
 
     if tstpeso_valor == "0":
@@ -149,9 +149,8 @@ def gerar_resposta_xml(xml_data_bytes, peso_novo, pesobalanca_novo, balanca_id, 
         return_value_v2 = etree.SubElement(root_response, "ReturnValueV2")
         fields_element = etree.SubElement(return_value_v2, "Fields")
 
-        # Adiciona a tabela modificada ao novo XML
-        table_field_element = etree.SubElement(fields_element, "TableField")
-        table_field_element.append(tabela_element)  # Adiciona a tabela *modificada*
+        # Adiciona a tabela modificada DIRETAMENTE aos Fields
+        fields_element.append(tabela_element)
 
         short_text_element = etree.SubElement(return_value_v2, "ShortText")
         short_text_element.text = "Pressione Lixeira para nova consulta"
