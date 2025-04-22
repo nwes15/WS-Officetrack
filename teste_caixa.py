@@ -80,6 +80,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
             <Fields>
               <Field>
                 <ID>{tstpeso_id_resp}</ID>
+                <OverrideData>1</OverrideData>
                 <Value>{tstpeso_valor_usado}</Value>
               </Field>
               <Field>
