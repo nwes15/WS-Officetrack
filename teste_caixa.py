@@ -3,7 +3,7 @@ from lxml import etree
 import random
 import logging
 from io import BytesIO
-import copy
+import copy  # Importar apenas uma vez
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
@@ -81,7 +81,65 @@ def gerar_valores_peso(tstpeso_valor, balanca_id):
             pesobalanca = formatar_numero()
         return peso, pesobalanca
 
-import copy
+def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
+    """
+    Gera um XML de resposta usando um template de string formatada.
+    Esta função é usada como fallback quando não se encontra a tabela no XML original.
+    """
+    logging.debug(f"Gerando resposta com template para balanca '{balanca_id}'")
+    
+    # Determina IDs
+    tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
+    peso_id_resp = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
+    pesobalanca_id_resp = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
+    
+    # Cria o template XML
+    xml_template = f'''<?xml version="1.0" encoding="utf-16"?>
+<ResponseV2 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <MessageV2>
+    <Text>Consulta realizada com sucesso.</Text>
+  </MessageV2>
+  <ReturnValueV2>
+    <Fields>
+      <TableField>
+        <ID>{tabela_id_resp}</ID>
+        <OverrideData>1</OverrideData>
+        <Rows>
+          <Row IsCurrentRow="True">
+            <Fields>
+              <Field>
+                <ID>{tstpeso_id}</ID>
+                <OverrideData>1</OverrideData>
+                <Value>{tstpeso_valor_usado}</Value>
+              </Field>
+              <Field>
+                <ID>{peso_id_resp}</ID>
+                <OverrideData>1</OverrideData>
+                <Value>{peso_novo}</Value>
+              </Field>
+              <Field>
+                <ID>{pesobalanca_id_resp}</ID>
+                <OverrideData>1</OverrideData>
+                <Value>{pesobalanca_novo}</Value>
+              </Field>
+              <Field>
+                <ID>WS</ID>
+                <OverrideData>1</OverrideData>
+                <Value>Pressione Lixeira para nova consulta</Value>
+              </Field>
+            </Fields>
+          </Row>
+        </Rows>
+      </TableField>
+    </Fields>
+    <ShortText>Pressione Lixeira para nova consulta</ShortText>
+    <LongText/>
+    <Value>17</Value>
+  </ReturnValueV2>
+</ResponseV2>'''
+    
+    logging.debug("XML de Resposta com template (UTF-16):\n%s", xml_template)
+    return Response(xml_template.encode("utf-16"), content_type="application/xml; charset=utf-16")
 
 def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
     """
@@ -101,12 +159,20 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
         tree = etree.parse(BytesIO(xml_bytes), parser)
         root = tree.getroot()
         
+        # Verificar quantas linhas existem no XML original
+        xpath_tabela = f".//TableField[ID='{tabela_id_resp}']"
+        tabelas_originais = root.xpath(xpath_tabela)
+        
+        if tabelas_originais:
+            tabela_original = tabelas_originais[0]
+            linhas_originais = tabela_original.xpath(".//Row")
+            logging.debug(f"XML original contém {len(linhas_originais)} linhas")
+        
         # Criar uma cópia do XML original para modificar
         response_tree = copy.deepcopy(tree)
         response_root = response_tree.getroot()
         
         # Encontrar a tabela no XML de resposta
-        xpath_tabela = f".//TableField[ID='{tabela_id_resp}']"
         tabelas_resp = response_root.xpath(xpath_tabela)
         
         if tabelas_resp:
@@ -157,6 +223,45 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
                     etree.SubElement(field, "ID").text = "WS"
                     etree.SubElement(field, "OverrideData").text = "1"
                     etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
+            else:
+                logging.warning(f"Nenhuma linha marcada como atual encontrada na tabela {tabela_id_resp}")
+                # Se não encontrou linha atual, usar a primeira linha
+                primeira_linha = tabela.xpath(".//Row[1]")
+                if primeira_linha:
+                    linha = primeira_linha[0]
+                    linha.set("IsCurrentRow", "True")
+                    
+                    # Atualizar os campos da linha
+                    campos = linha.find("Fields")
+                    if campos is not None:
+                        # Limpar campos existentes
+                        for child in list(campos):
+                            campos.remove(child)
+                        
+                        # Adicionar campos atualizados
+                        # Campo TSTPESO
+                        field = etree.SubElement(campos, "Field")
+                        etree.SubElement(field, "ID").text = tstpeso_id
+                        etree.SubElement(field, "OverrideData").text = "1"
+                        etree.SubElement(field, "Value").text = tstpeso_valor_usado
+                        
+                        # Campo PESO
+                        field = etree.SubElement(campos, "Field")
+                        etree.SubElement(field, "ID").text = peso_id_resp
+                        etree.SubElement(field, "OverrideData").text = "1"
+                        etree.SubElement(field, "Value").text = peso_novo
+                        
+                        # Campo PESOBALANCA
+                        field = etree.SubElement(campos, "Field")
+                        etree.SubElement(field, "ID").text = pesobalanca_id_resp
+                        etree.SubElement(field, "OverrideData").text = "1"
+                        etree.SubElement(field, "Value").text = pesobalanca_novo
+                        
+                        # Campo WS (mensagem)
+                        field = etree.SubElement(campos, "Field")
+                        etree.SubElement(field, "ID").text = "WS"
+                        etree.SubElement(field, "OverrideData").text = "1"
+                        etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
         else:
             # Se não encontrou a tabela, criar uma resposta com template padrão
             return gerar_resposta_string_template(
@@ -176,6 +281,13 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
         if value_elem is not None:
             value_elem.text = "17"
         
+        # Verificar quantas linhas existem no XML de resposta
+        tabelas_resp_final = response_root.xpath(xpath_tabela)
+        if tabelas_resp_final:
+            tabela_resp_final = tabelas_resp_final[0]
+            linhas_resp_final = tabela_resp_final.xpath(".//Row")
+            logging.debug(f"XML de resposta contém {len(linhas_resp_final)} linhas")
+        
         # Gerar a string XML final
         xml_declaration = '<?xml version="1.0" encoding="utf-16"?>\n'
         xml_body = etree.tostring(response_root, encoding="utf-16", xml_declaration=False).decode("utf-16")
@@ -187,7 +299,6 @@ def gerar_resposta_preservando_estrutura(xml_bytes, peso_novo, pesobalanca_novo,
     except Exception as e:
         logging.exception("Erro ao gerar resposta preservando estrutura")
         return gerar_erro_xml_padrao(f"Erro ao processar XML: {str(e)}", "Erro Processamento", 500)
-
 
 
 def encaixotar_v2():
@@ -259,63 +370,3 @@ def encaixotar_v2():
     except Exception as e:
         logging.exception("Erro GERAL fatal na rota /teste_caixa")
         return gerar_erro_xml_padrao(f"Erro interno inesperado: {str(e)}", "Erro Servidor", 500)
-    
-def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstpeso_id, tstpeso_valor_usado):
-    """
-    Gera um XML de resposta usando um template de string formatada.
-    Esta função é usada como fallback quando não se encontra a tabela no XML original.
-    """
-    logging.debug(f"Gerando resposta com template para balanca '{balanca_id}'")
-    
-    # Determina IDs
-    tabela_id_resp = "TABCAIXA1" if balanca_id == "balanca1" else "TABCAIXA2"
-    peso_id_resp = "CX1PESO" if balanca_id == "balanca1" else "CX2PESO"
-    pesobalanca_id_resp = "CX1PESOBALANCA" if balanca_id == "balanca1" else "CX2PESOBALANCA"
-    
-    # Cria o template XML
-    xml_template = f'''<?xml version="1.0" encoding="utf-16"?>
-<ResponseV2 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <MessageV2>
-    <Text>Consulta realizada com sucesso.</Text>
-  </MessageV2>
-  <ReturnValueV2>
-    <Fields>
-      <TableField>
-        <ID>{tabela_id_resp}</ID>
-        <OverrideData>1</OverrideData>
-        <Rows>
-          <Row IsCurrentRow="True">
-            <Fields>
-              <Field>
-                <ID>{tstpeso_id}</ID>
-                <OverrideData>1</OverrideData>
-                <Value>{tstpeso_valor_usado}</Value>
-              </Field>
-              <Field>
-                <ID>{peso_id_resp}</ID>
-                <OverrideData>1</OverrideData>
-                <Value>{peso_novo}</Value>
-              </Field>
-              <Field>
-                <ID>{pesobalanca_id_resp}</ID>
-                <OverrideData>1</OverrideData>
-                <Value>{pesobalanca_novo}</Value>
-              </Field>
-              <Field>
-                <ID>WS</ID>
-                <OverrideData>1</OverrideData>
-                <Value>Pressione Lixeira para nova consulta</Value>
-              </Field>
-            </Fields>
-          </Row>
-        </Rows>
-      </TableField>
-    </Fields>
-    <ShortText>Pressione Lixeira para nova consulta</ShortText>
-    <LongText/>
-    <Value>17</Value>
-  </ReturnValueV2>
-</ResponseV2>'''
-    
-    logging.debug("XML de Resposta com template (UTF-16):\n%s", xml_template)
-    return Response(xml_template.encode("utf-16"), content_type="application/xml; charset=utf-16")
