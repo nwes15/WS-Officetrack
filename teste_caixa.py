@@ -80,17 +80,17 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
             <Fields>
               <Field>
                 <ID>{tstpeso_id_resp}</ID>
-                <OverrideData>1</OverrideData>
+                <OverrideData>0</OverrideData>
                 <Value>{tstpeso_valor_usado}</Value>
               </Field>
               <Field>
                 <ID>{peso_id_resp}</ID>
-                <OverrideData>1</OverrideData>
+                <OverrideData>0</OverrideData>
                 <Value>{peso_novo}</Value>
               </Field>
               <Field>
                 <ID>{pesobalanca_id_resp}</ID>
-                <OverrideData>1</OverrideData>
+                <OverrideData>0</OverrideData>
                 <Value>{pesobalanca_novo}</Value>
               </Field>
             </Fields>
@@ -100,7 +100,7 @@ def gerar_resposta_string_template(peso_novo, pesobalanca_novo, balanca_id, tstp
     </Fields>
     <ShortText>Pressione Lixeira para nova consulta</ShortText>
     <LongText/>
-    <Value>58</Value>
+    <Value>17</Value>
   </ReturnValueV2>
 </ResponseV2>"""
 
