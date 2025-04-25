@@ -237,13 +237,13 @@ def gerar_resposta_com_linhas_preservadas(xml_bytes, peso_novo, pesobalanca_novo
             # Campo EVFOTO (sem OverrideData)
             field = etree.SubElement(row_fields, "Field")
             etree.SubElement(field, "ID").text = evfoto_id_resp
+            etree.SubElement(field, "OverrideData").text = "0"
             etree.SubElement(field, "IsVisible").text = "0"
             
             # Campo WS (mensagem)
             field = etree.SubElement(row_fields, "Field")
             etree.SubElement(field, "ID").text = "WS"
-            etree.SubElement(field, "OverrideData").text = "1"
-            etree.SubElement(field, "IsVisible").text = "1"
+            etree.SubElement(field, "OverrideData").text = "0"
             etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
         
         # Adicionar elementos restantes
