@@ -144,7 +144,8 @@ def gerar_resposta_com_linhas_preservadas(xml_bytes, peso_novo, pesobalanca_novo
                                 etree.SubElement(field, "IsVisible").text = is_visible
                             
                             # Adicionar OverrideData=1 para TODOS os campos
-                            etree.SubElement(field, "OverrideData").text = "1"
+                            if field_id in (peso_id_resp, pesobalanca_id_resp):
+                                etree.SubElement(field, "OverrideData").text = "1"
                             
                             # Define valor com base no campo
                             if field_id == tstpeso_id:
