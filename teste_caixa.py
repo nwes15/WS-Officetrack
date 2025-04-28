@@ -141,10 +141,6 @@ def gerar_resposta_com_linhas_preservadas(xml_bytes, peso_novo, pesobalanca_novo
                         if field_id is not None:
                             etree.SubElement(field, "ID").text = field_id
                             
-                            # Adicionar IsVisible se existir no original
-                            is_visible = field_original.findtext("IsVisible")
-                            if is_visible is not None:
-                                etree.SubElement(field, "IsVisible").text = is_visible
                             
                             # Verificar se é o campo de foto (CX1EVFOTO ou CX2EVFOTO)
                             if field_id == evfoto_id_resp:
@@ -177,9 +173,7 @@ def gerar_resposta_com_linhas_preservadas(xml_bytes, peso_novo, pesobalanca_novo
                     ws_fields = row_fields.xpath(".//Field[ID='WS' or Id='WS']")
                     if not ws_fields:
                         field = etree.SubElement(row_fields, "Field")
-                        etree.SubElement(field, "ID").text = "WS"
-                        etree.SubElement(field, "OverrideData").text = "1"
-                        etree.SubElement(field, "IsVisible").text = "1"
+                        etree.SubElement(field, "ID").text = "Consulta realizada com sucesso"
                         etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
                 else:
                     # Para linhas não-atuais, copiar os campos originais sem OverrideData
@@ -237,7 +231,6 @@ def gerar_resposta_com_linhas_preservadas(xml_bytes, peso_novo, pesobalanca_novo
             # Campo WS (mensagem)
             field = etree.SubElement(row_fields, "Field")
             etree.SubElement(field, "ID").text = "Consulta realizada com sucesso."
-            etree.SubElement(field, "OverrideData").text = "0"
             etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
         
         # Adicionar elementos restantes
