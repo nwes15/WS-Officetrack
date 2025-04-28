@@ -191,10 +191,6 @@ def gerar_resposta_com_linhas_preservadas(xml_bytes, peso_novo, pesobalanca_novo
                         if id_value is not None:
                             etree.SubElement(field, "ID").text = id_value
                         
-                        # Copiar IsVisible se existir
-                        is_visible = field_original.findtext("IsVisible")
-                        if is_visible is not None:
-                            etree.SubElement(field, "IsVisible").text = is_visible
                         
                         # Copiar o Value se existir
                         value = field_original.findtext("Value")
@@ -224,25 +220,23 @@ def gerar_resposta_com_linhas_preservadas(xml_bytes, peso_novo, pesobalanca_novo
             field = etree.SubElement(row_fields, "Field")
             etree.SubElement(field, "ID").text = peso_id_resp
             etree.SubElement(field, "OverrideData").text = "1"
-            etree.SubElement(field, "IsVisible").text = "1"
             etree.SubElement(field, "Value").text = peso_novo
             
             # Campo PESOBALANCA
             field = etree.SubElement(row_fields, "Field")
             etree.SubElement(field, "ID").text = pesobalanca_id_resp
             etree.SubElement(field, "OverrideData").text = "1"
-            etree.SubElement(field, "IsVisible").text = "1"
             etree.SubElement(field, "Value").text = pesobalanca_novo
             
             # Campo EVFOTO (sem OverrideData)
-            #field = etree.SubElement(row_fields, "Field")
-            #etree.SubElement(field, "ID").text = evfoto_id_resp
-           # etree.SubElement(field, "OverrideData").text = "0"
+            field = etree.SubElement(row_fields, "Field")
+            etree.SubElement(field, "ID").text = evfoto_id_resp
+            etree.SubElement(field, "OverrideData").text = "1"
             
             
             # Campo WS (mensagem)
             field = etree.SubElement(row_fields, "Field")
-            etree.SubElement(field, "ID").text = "WS"
+            etree.SubElement(field, "ID").text = "Consulta realizada com sucesso."
             etree.SubElement(field, "OverrideData").text = "0"
             etree.SubElement(field, "Value").text = "Pressione Lixeira para nova consulta"
         
