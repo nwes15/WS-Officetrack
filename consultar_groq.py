@@ -5,7 +5,6 @@ import requests
 import os
 from utils.gerar_erro import gerar_erro_xml
 from utils.adicionar_campo import adicionar_campo
-from utils.adicionar_table_field import adicionar_table_field
 
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
@@ -120,8 +119,6 @@ def gerar_resposta_xml_v2_groq(resposta_groq):
     fields = etree.SubElement(return_value, "Fields")
 
     adicionar_campo(fields, "RESPOSTA", resposta_groq)
-
-    adicionar_table_field(fields)
 
     etree.SubElement(return_value, "ShortText").text = "Segue a resposta."
     etree.SubElement(return_value, "LongText")
