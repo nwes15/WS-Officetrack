@@ -31,7 +31,7 @@ def consultar_cepv2():
         # Se não encontrou no form, tenta do corpo da requisição
         if not xml_data and request.data:
             try:
-                xml_data = request.data.decode('utf-8')
+                xml_data = request.data.decode('utf-16')
                 logging.debug("Usando dados brutos do corpo da requisição")
             except:
                 pass
@@ -43,7 +43,7 @@ def consultar_cepv2():
 
         # Tenta fazer o parse do XML
         try:
-            root = etree.fromstring(xml_data.encode("utf-8"))
+            root = etree.fromstring(xml_data.encode("utf-16"))
         except etree.XMLSyntaxError:
             return gerar_erro_xml("Erro ao processar o XML recebido.", "Erro")
 
