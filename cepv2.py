@@ -122,45 +122,23 @@ def gerar_resposta_xml_v2(data):
     adicionar_campo(fields, "ESTADO", data.get("estado", ""))
     adicionar_campo(fields, "UF", data.get("uf", ""))
     
-    # Adicionar TableField exemplo
-    table_field_id = "TABCAIXA1"
-    rows_data = [
-        {"TextTable": "Y", "CX1PESO": "9,0"},
-        {"TextTable": "X", "CX1PESO": "8,0"},
-    ]
-    adicionar_table_field(fields, table_field_id, rows_data)
     
     # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "CEP ENCONTRADO - INFOS ABAIXO"
     etree.SubElement(return_value, "LongText")  # Vazio
     etree.SubElement(return_value, "Value").text = "58"
     
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    # Gerar XML com declaração e encoding utf-8
+    xml_declaration = '<?xml version="1.0" encoding="utf-8"?>'
+    xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=False).decode("utf-8")
     xml_str = xml_declaration + "\n" + xml_str
     
     logging.debug(f"XML de Resposta V2: {xml_str}")  # Depuração no console
     
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    return Response(xml_str, content_type="text/xml; charset=utf-8")
 
 
-def adicionar_table_field(parent, field_id, rows_data):
-    """Adiciona um TableField com linhas dinâmicas."""
-    table_field = etree.SubElement(parent, "TableField")
-    etree.SubElement(table_field, "ID").text = field_id
-    rows_element = etree.SubElement(table_field, "Rows")
 
-    for row_data in rows_data:
-        create_row(rows_element, row_data)
-
-def create_row(parent, fields_data):
-    """Cria um elemento Row com campos."""
-    row = etree.SubElement(parent, "Row")
-    fields_element = etree.SubElement(row, "Fields")
-
-    for field_id, value in fields_data.items():
-        adicionar_campo(fields_element, field_id, value)
 
 def gerar_erro_xml(mensagem, short_text):
     """Gera um XML de erro com mensagem personalizada."""
