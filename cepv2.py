@@ -135,7 +135,8 @@ def gerar_resposta_xml_v2(data):
     
     logging.debug(f"XML de Resposta V2: {xml_str}")  # Depuração no console
     
-    return Response(xml_str, content_type="text/xml; charset=utf-16")
+    return Response(xml_str.encode("utf-16"), content_type="text/xml; charset=utf-16")
+
 
 
 
@@ -167,4 +168,4 @@ def gerar_erro_xml(mensagem, short_text):
     xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
     xml_str = xml_declaration + "\n" + xml_str
     
-    return Response(xml_str, content_type="text/xml; charset=utf-16")
+    return Response(xml_str.encode("utf-16"), content_type="text/xml; charset=utf-16")
