@@ -129,13 +129,13 @@ def gerar_resposta_xml_v2(data):
     etree.SubElement(return_value, "Value").text = "17"
     
     # Gerar XML com declaração e encoding utf-8
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_declaration = '<?xml version="1.0" encoding="utf-8"?>'
+    xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=False).decode("utf-8")
     xml_str = xml_declaration + "\n" + xml_str
     
     logging.debug(f"XML de Resposta V2: {xml_str}")  # Depuração no console
     
-    return Response(xml_str.encode("utf-16"), content_type="text/xml; charset=utf-16")
+    return Response(xml_str, content_type="text/xml; charset=utf-8")
 
 
 
@@ -164,8 +164,8 @@ def gerar_erro_xml(mensagem, short_text):
     etree.SubElement(return_value, "Value").text = "0"
     
     # Gerar XML com declaração e encoding utf-8
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    xml_declaration = '<?xml version="1.0" encoding="utf-8"?>'
+    xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=False).decode("utf-8")
     xml_str = xml_declaration + "\n" + xml_str
     
-    return Response(xml_str.encode("utf-16"), content_type="text/xml; charset=utf-16")
+    return Response(xml_str, content_type="text/xml; charset=utf-8")
