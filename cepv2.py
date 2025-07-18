@@ -162,9 +162,9 @@ def gerar_erro_xml(mensagem, short_text):
     etree.SubElement(return_value, "LongText")
     etree.SubElement(return_value, "Value").text = "0"
     
-    # Gerar XML com declaração e encoding utf-16
-    xml_declaration = '<?xml version="1.0" encoding="utf-16"?>'
-    xml_str = etree.tostring(response, encoding="utf-16", xml_declaration=False).decode("utf-16")
+    # Gerar XML com declaração e encoding utf-8
+    xml_declaration = '<?xml version="1.0" encoding="utf-8"?>'
+    xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=False).decode("utf-8")
     xml_str = xml_declaration + "\n" + xml_str
     
-    return Response(xml_str.encode("utf-16"), content_type="application/xml; charset=utf-16")
+    return Response(xml_str.encode("utf-8"), content_type="application/xml; charset=utf-8")
