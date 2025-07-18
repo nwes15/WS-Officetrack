@@ -126,7 +126,7 @@ def gerar_resposta_xml_v2(data):
     # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "CEP ENCONTRADO - INFOS ABAIXO"
     etree.SubElement(return_value, "LongText")  # Vazio
-    etree.SubElement(return_value, "Value").text = "58"
+    etree.SubElement(return_value, "Value").text = "17"
     
     # Gerar XML com declaração e encoding utf-8
     xml_declaration = '<?xml version="1.0" encoding="utf-8"?>'
