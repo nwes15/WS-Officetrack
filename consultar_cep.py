@@ -16,7 +16,7 @@ def consultar_cep():
         
         # Tenta do form primeiro (com vários nomes possíveis)
         if request.form:
-            for possible_name in ["TextXML", "textxml", "xmldata", "xml"]:
+            for possible_name in ["TextXML", "textxml", "xmldata", "xml", "application/x-www-form-urlencoded"]:
                 if possible_name in request.form:
                     xml_data = request.form.get(possible_name)
                     logging.debug(f"XML encontrado no campo {possible_name}")

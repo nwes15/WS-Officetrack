@@ -4,7 +4,6 @@ from lxml import etree
 import logging
 from utils.gerar_erro import gerar_erro_xml
 from utils.adicionar_campo import adicionar_campo
-from utils.adicionar_table_field import adicionar_table_field
 
 def consultar_cepv2():
     try:
@@ -167,4 +166,4 @@ def gerar_erro_xml(mensagem, short_text):
     xml_str = etree.tostring(response, encoding="utf-8", xml_declaration=False).decode("utf-8")
     xml_str = xml_declaration + "\n" + xml_str
     
-    return Response(xml_str.encode("utf-8"), content_type="application/xml; charset=utf-8")
+    return Response(xml_str, content_type="text/xml; charset=utf-8")
