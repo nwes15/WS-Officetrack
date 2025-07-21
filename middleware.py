@@ -1,19 +1,20 @@
 from flask import Flask
 from dotenv import load_dotenv
 import logging
-from consultar_cep import consultar_cep
-from consultar_groq import consultar_groq
-from consultar_peso import consultar_peso
-from consultar_endereco import consultar_endereco
-from validar_item import validar_item
-from resgate_xml import resgate_xml
-from consultar_peso2 import consultar_peso2
-from funcao_unica import consultar_peso_unico
-from encaixotar import encaixotar_v3
-from teste_caixa import encaixotar_v2
-from table_estatica import encaixotar_v4
-from dados_sempre import sempre_sistema
+from apps.consultar_cep import consultar_cep
+from apps.consultar_groq import consultar_groq
+from apps.consultar_peso import consultar_peso
+from apps.consultar_endereco import consultar_endereco
+from apps.validar_item import validar_item
+from apps.resgate_xml import resgate_xml
+from apps.consultar_peso2 import consultar_peso2
+from apps.funcao_unica import consultar_peso_unico
+from apps.encaixotar import encaixotar_v3
+from apps.teste_caixa import encaixotar_v2
+from apps.table_estatica import encaixotar_v4
+from apps.dados_sempre import sempre_sistema
 from cepv2 import consultar_cepv2
+
 
 load_dotenv()
 
@@ -39,4 +40,4 @@ app.add_url_rule("/consultar_cepv2", methods=['POST'], view_func=consultar_cepv2
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)
