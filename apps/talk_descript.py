@@ -42,7 +42,7 @@ def consultar_groqv2():
         if not texto_original:
             return gerar_erro_xml("TEXTO FALADO não encontrado", "Erro", root_element="ResponseV2", namespaces=None)
         
-        prompt = f"Revise o texto abaixo, corrija erros ortográficos, gramaticais e de concordância, e retorne o texto corrigido:\n\n{texto_original}"
+        prompt = f"Revise o texto abaixo, corrija erros ortográficos, gramaticais e de concordância, e retorne o texto corrigido, mas nao precisa expicar o que foi feito de ajustes:\n\n{texto_original}"
         texto_corrigido = consultar_groq_api(prompt)
         if not texto_corrigido:
             return gerar_erro_xml("Erro ao consultar a API Groq", "Erro", root_element="ResponseV2", namespaces=None)
