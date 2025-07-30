@@ -3,7 +3,7 @@ from lxml import etree
 import logging
 import requests
 import os
-from utils import adicionar_campo
+from utils.adicionar_campo import adicionar_campo
 from cepv2 import gerar_erro_xml
 
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
