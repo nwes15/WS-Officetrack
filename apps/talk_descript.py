@@ -17,11 +17,11 @@ def consultar_groqv2():
         if request.form:
             for possible_name in ['TextXML', 'TextXML', 'textxml', 'xml']:
                 if possible_name in request.form:
-                    xml_data = request.form(possible_name)
+                    xml_data = request.form.get(possible_name)
                     break
             if not xml_data and len(request.form) > 0:
                 first_key = next(iter(request.form))
-                xml_data = request.form(first_key)
+                xml_data = request.form.get(first_key)
 
         if not xml_data and request.data:
             try:
@@ -30,27 +30,27 @@ def consultar_groqv2():
                 pass
 
         if not xml_data:
-            return gerar_erro_xml("XML não encontrdo", "Erro", root_elemnt="ResponseV2", namespaces=None)
-        
+            return gerar_erro_xml("XML não encontrado", "Erro", root_element="ResponseV2", namespaces=None)
+
         try:
             root = etree.fromstring(xml_data.encode('utf-8'))
         except etree.XMLSyntaxError:
-            return gerar_erro_xml("XML malformado", "Erro", root_elemnt="ResponseV2", namespaces=None)
+            return gerar_erro_xml("XML mal formado", "Erro", root_element="ResponseV2", namespaces=None)
         
         campos = processar_campos_groq(root)
         texto_original = campos.get("TALK_TEXT")
         if not texto_original:
-            return gerar_erro_xml("TEXTO FALADO não encontrado", "Erro", root_elemnt="ResponseV2", namespaces=None)
+            return gerar_erro_xml("TEXTO FALADO não encontrado", "Erro", root_element="ResponseV2", namespaces=None)
         
         prompt = f"Revise o texto abaixo, corrija erros ortográficos, gramaticais e de concordância, e retorne o texto corrigido:\n\n{texto_original}"
         texto_corrigido = consultar_groq_api(prompt)
         if not texto_corrigido:
-            return gerar_erro_xml("Erro ao consultar a API Groq", "Erro", root_elemnt="ResponseV2", namespaces=None)
+            return gerar_erro_xml("Erro ao consultar a API Groq", "Erro", root_element="ResponseV2", namespaces=None)
         
         return gerar_resposta_xml_v2_talk_text_corrigido(texto_corrigido)
     except Exception as e:
         logging.error(f"Erro ao processar a requisição: {e}")
-        return gerar_erro_xml("Erro interno do servidor", "Erro", root_elemnt="ResponseV2", namespaces=None)
+        return gerar_erro_xml("Erro interno do servidor", "Erro", root_element="ResponseV2", namespaces=None)
     
 
 def processar_campos_groq(root):
