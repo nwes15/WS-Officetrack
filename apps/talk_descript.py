@@ -4,7 +4,7 @@ import logging
 import requests
 import os
 from utils.adicionar_campo import adicionar_campo
-from cepv2 import gerar_erro_xml
+from apps.cepv2 import gerar_erro_xml
 
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'

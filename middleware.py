@@ -13,7 +13,7 @@ from apps.encaixotar import encaixotar_v3
 from apps.teste_caixa import encaixotar_v2
 from apps.table_estatica import encaixotar_v4
 from apps.dados_sempre import sempre_sistema
-from cepv2 import consultar_cepv2
+from apps.cepv2 import consultar_cepv2
 from apps.talk_descript import consultar_groqv2
 
 
