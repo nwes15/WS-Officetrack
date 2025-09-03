@@ -2,7 +2,7 @@ from flask import Flask, Response
 
 app = Flask(__name__)
 
-@app.route('/simple-xml')
+@app.route('/simple-xml', methods=['POST'])
 def simple_xml():
     xml_data = '''
     <Response>
