@@ -15,6 +15,7 @@ from apps.table_estatica import encaixotar_v4
 from apps.dados_sempre import sempre_sistema
 from apps.cepv2 import consultar_cepv2
 from apps.talk_descript import consultar_groqv2
+from apps.rota import simple_xml
 
 
 load_dotenv()
@@ -39,7 +40,7 @@ app.add_url_rule("/table_estatica", methods=['POST'], view_func=encaixotar_v4)
 app.add_url_rule("/dados_sempre", methods=['POST'], view_func=sempre_sistema)
 app.add_url_rule("/consultar_cepv2", methods=['POST'], view_func=consultar_cepv2)
 app.add_url_rule("/consultar_groqv2", methods=['POST'], view_func=consultar_groqv2)
-
+app.add_url_rule("/simple-xml", methods=['GET'], view_func=simple_xml)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
