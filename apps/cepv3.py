@@ -5,6 +5,7 @@ import logging
 import re
 from utils.gerar_erro import gerar_erro_xml
 from utils.adicionar_campo import adicionar_campo
+from utils.adicionar_table_field import adicionar_table_field
 
 def consultar_cepv3():
     try:
@@ -118,71 +119,146 @@ def deve_buscar_multiplos_enderecos(data, cep):
 
 def buscar_enderecos_multiplos(data_viacep, cep):
     """
-    Busca múltiplos endereços baseado nos dados retornados pelo ViaCEP.
-    Faz buscas por logradouro na mesma cidade para encontrar variações.
+    Busca múltiplos endereços baseado em CEPs próximos/similares.
+    Foca apenas em variações do mesmo CEP base.
     """
     
     try:
-        logradouro = data_viacep.get("logradouro", "")
-        cidade = data_viacep.get("localidade", "")
-        uf = data_viacep.get("uf", "")
+        # Extrai o CEP base (sem os últimos 3 dígitos)
+        cep_limpo = cep.replace("-", "")
+        cep_base = cep_limpo[:-3]  # Ex: "01310000" → "01310"
         
-        if not logradouro or not cidade or not uf:
-            logging.debug("Dados insuficientes para busca múltipla")
-            return []
+        logging.debug(f"Buscando CEPs similares ao base: {cep_base}xxx")
         
-        # Limpa o logradouro para a busca
-        logradouro_busca = limpar_logradouro_para_busca(logradouro)
+        # Lista de variações de CEP para testar
+        ceps_para_testar = gerar_ceps_similares(cep_base)
         
-        if not logradouro_busca:
-            logging.debug("Logradouro não adequado para busca múltipla")
-            return []
-        
-        # Monta URL de busca
-        url_busca = f"https://viacep.com.br/ws/{uf}/{cidade}/{logradouro_busca}/json/"
-        
-        logging.debug(f"Buscando múltiplos endereços em: {url_busca}")
-        
-        response = requests.get(url_busca, timeout=10)
-        
-        if response.status_code != 200:
-            logging.error(f"Erro na busca de múltiplos endereços: {response.status_code}")
-            return []
-        
-        resultados = response.json()
-        
-        # Se não é uma lista ou está vazia, não há múltiplos endereços
-        if not isinstance(resultados, list) or len(resultados) <= 1:
-            logging.debug("Não encontrados múltiplos endereços")
-            return []
-        
-        # Processa os resultados para o formato esperado
         enderecos = []
-        for i, resultado in enumerate(resultados[:10]):  # Limita a 10 resultados
-            endereco_completo = montar_endereco_completo(resultado)
-            
-            endereco = {
-                "id": str(i + 1),
-                "endereco_completo": endereco_completo,
-                "cep": resultado.get("cep", ""),
-                "logradouro": resultado.get("logradouro", ""),
-                "complemento": resultado.get("complemento", ""),
-                "bairro": resultado.get("bairro", ""),
-                "cidade": resultado.get("localidade", ""),
-                "uf": resultado.get("uf", ""),
-                "dados_completos": resultado  # Guarda todos os dados originais
-            }
-            enderecos.append(endereco)
+        enderecos_encontrados = set()  # Para evitar duplicatas
         
-        logging.debug(f"Encontrados {len(enderecos)} endereços múltiplos")
+        for cep_teste in ceps_para_testar:
+            try:
+                # Formata o CEP com hífen
+                cep_formatado = f"{cep_teste[:5]}-{cep_teste[5:]}"
+                
+                # Pula o CEP original (já temos os dados)
+                if cep_formatado == cep:
+                    continue
+                
+                # Consulta o CEP
+                url_teste = f"https://viacep.com.br/ws/{cep_formatado}/json/"
+                response = requests.get(url_teste, timeout=5)
+                
+                if response.status_code == 200:
+                    resultado = response.json()
+                    
+                    # Verifica se é válido e se é do mesmo logradouro base
+                    if not resultado.get("erro") and eh_endereco_similar(data_viacep, resultado):
+                        cep_key = resultado.get("cep", "")
+                        
+                        # Evita duplicatas
+                        if cep_key not in enderecos_encontrados:
+                            enderecos_encontrados.add(cep_key)
+                            
+                            endereco_completo = montar_endereco_completo(resultado)
+                            
+                            endereco = {
+                                "id": str(len(enderecos) + 1),
+                                "endereco_completo": endereco_completo,
+                                "cep": resultado.get("cep", ""),
+                                "logradouro": resultado.get("logradouro", ""),
+                                "complemento": resultado.get("complemento", ""),
+                                "bairro": resultado.get("bairro", ""),
+                                "cidade": resultado.get("localidade", ""),
+                                "uf": resultado.get("uf", ""),
+                                "dados_completos": resultado
+                            }
+                            enderecos.append(endereco)
+                
+                # Para não sobrecarregar a API
+                if len(enderecos) >= 8:  # Limita a 8 resultados
+                    break
+                    
+            except requests.RequestException:
+                continue  # Ignora erros de CEPs individuais
+        
+        logging.debug(f"Encontrados {len(enderecos)} endereços similares")
         return enderecos
         
-    except requests.RequestException as e:
-        logging.error(f"Erro na requisição para buscar múltiplos endereços: {str(e)}")
-        return []
     except Exception as e:
-        logging.error(f"Erro ao processar múltiplos endereços: {str(e)}")
+        logging.error(f"Erro ao buscar endereços múltiplos: {str(e)}")
         return []
+
+def gerar_ceps_similares(cep_base):
+    """
+    Gera lista de CEPs similares para testar.
+    Ex: para "01310" gera ["01310000", "01310100", "01310200", ...]
+    """
+    ceps = []
+    
+    # Variações de 100 em 100 (mais comum para logradouros grandes)
+    for i in range(0, 900, 100):  # 000, 100, 200, ..., 800
+        cep_variacao = f"{cep_base}{i:03d}"
+        ceps.append(cep_variacao)
+    
+    # Algumas variações específicas comuns
+    variações_especiais = ["001", "010", "020", "050", "999"]
+    for var in variações_especiais:
+        cep_variacao = f"{cep_base}{var}"
+        if cep_variacao not in ceps:
+            ceps.append(cep_variacao)
+    
+    logging.debug(f"CEPs para testar: {ceps[:5]}... (total: {len(ceps)})")
+    return ceps
+
+def eh_endereco_similar(endereco_original, endereco_teste):
+    """
+    Verifica se o endereço testado é realmente similar ao original.
+    Evita trazer endereços muito diferentes.
+    """
+    
+    # Deve ser da mesma cidade e UF
+    if (endereco_original.get("localidade") != endereco_teste.get("localidade") or 
+        endereco_original.get("uf") != endereco_teste.get("uf")):
+        return False
+    
+    # Deve ser do mesmo bairro ou bairro muito próximo
+    bairro_original = endereco_original.get("bairro", "").lower()
+    bairro_teste = endereco_teste.get("bairro", "").lower()
+    
+    # Se os bairros são muito diferentes, rejeita
+    if bairro_original and bairro_teste:
+        # Permite se são exatamente iguais ou um contém o outro
+        if bairro_original not in bairro_teste and bairro_teste not in bairro_original:
+            # Verifica se ao menos têm uma palavra em comum
+            palavras_original = set(bairro_original.split())
+            palavras_teste = set(bairro_teste.split())
+            
+            if not palavras_original.intersection(palavras_teste):
+                logging.debug(f"Bairros muito diferentes: '{bairro_original}' vs '{bairro_teste}'")
+                return False
+    
+    # Verifica se o logradouro é similar
+    logradouro_original = endereco_original.get("logradouro", "").lower()
+    logradouro_teste = endereco_teste.get("logradouro", "").lower()
+    
+    if logradouro_original and logradouro_teste:
+        # Extrai palavras-chave do logradouro
+        palavras_original = set(logradouro_original.replace("avenida", "").replace("rua", "").replace("alameda", "").split())
+        palavras_teste = set(logradouro_teste.replace("avenida", "").replace("rua", "").replace("alameda", "").split())
+        
+        # Remove palavras muito comuns
+        palavras_comuns = {"de", "da", "do", "das", "dos", "e", "&", "santo", "santa"}
+        palavras_original -= palavras_comuns
+        palavras_teste -= palavras_comuns
+        
+        # Deve ter pelo menos uma palavra-chave em comum
+        if palavras_original and palavras_teste:
+            if not palavras_original.intersection(palavras_teste):
+                logging.debug(f"Logradouros muito diferentes: '{logradouro_original}' vs '{logradouro_teste}'")
+                return False
+    
+    return True
 
 def limpar_logradouro_para_busca(logradouro):
     """
@@ -317,6 +393,13 @@ def gerar_resposta_xml_v2(data):
     adicionar_campo(fields, "ESTADO", data.get("estado", ""))
     adicionar_campo(fields, "UF", data.get("uf", ""))
     
+    # Adicionar TableField exemplo
+    table_field_id = "TABCAIXA1"
+    rows_data = [
+        {"TextTable": "Y", "CX1PESO": "9,0"},
+        {"TextTable": "X", "CX1PESO": "8,0"},
+    ]
+    adicionar_table_field(fields, table_field_id, rows_data)
     
     # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "CEP ENCONTRADO - INFOS ABAIXO"
