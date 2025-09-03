@@ -2,76 +2,67 @@ from flask import Flask, Response, request
 import logging
 
 app = Flask(__name__)
-app.url_map.strict_slashes = False
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route('/simple-xml', methods=['GET', 'POST'])  # Aceita ambos os métodos
+# Middleware para capturar TODAS as requisições
+@app.before_request
+def log_request_info():
+    app.logger.debug('=== ANTES DA REQUISIÇÃO ===')
+    app.logger.debug('Headers: %s', request.headers)
+    app.logger.debug('Body: %s', request.get_data())
+    app.logger.debug('Method: %s', request.method)
+    app.logger.debug('URL: %s', request.url)
+    app.logger.debug('=============================')
+
+# Rota que aceita QUALQUER método
+@app.route('/simple-xml', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 def simple_xml():
     try:
-        # Log detalhado para debug
-        app.logger.info(f"=== REQUISIÇÃO RECEBIDA ===")
-        app.logger.info(f"Método: {request.method}")
-        app.logger.info(f"URL: {request.url}")
-        app.logger.info(f"Headers: {dict(request.headers)}")
-        app.logger.info(f"Data: {request.data}")
-        app.logger.info(f"========================")
+        print(f"FUNÇÃO CHAMADA! Método: {request.method}")
         
-        xml_data = '''<?xml version="1.0" encoding="utf-16"?>
+        xml_data = '''<?xml version="1.0" encoding="utf-8"?>
 <Response>
     <ReturnValue>
         <Items>
             <Item>
-                <Text>One</Text>
+                <Text>Option One</Text>
                 <Value>1</Value>
             </Item>
             <Item>
-                <Text>Two</Text>
+                <Text>Option Two</Text>
                 <Value>2</Value>
             </Item>
             <Item>
-                <Text>Three</Text>
+                <Text>Option Three</Text>
                 <Value>3</Value>
             </Item>
         </Items>
     </ReturnValue>
 </Response>'''
         
-        app.logger.info("Enviando resposta XML...")
-        return Response(xml_data.encode('utf-16'), mimetype='application/xml')
+        print("Enviando resposta XML...")
+        return Response(xml_data, mimetype='text/xml')
         
     except Exception as e:
-        app.logger.error(f"ERRO: {str(e)}")
-        error_xml = '''<?xml version="1.0" encoding="utf-16"?>
-<Response>
-    <Message>
-        <Text>Erro interno</Text>
-        <Icon>Critical</Icon>
-    </Message>
-</Response>'''
-        return Response(error_xml.encode('utf-16'), mimetype='application/xml')
+        print(f"ERRO na função: {str(e)}")
+        return Response("Erro", status=500)
 
-# Rota de teste para verificar se Flask está funcionando
-@app.route('/test', methods=['GET'])
-def test():
-    return "Flask está funcionando!"
-
-# Rota para listar todas as rotas disponíveis
-@app.route('/routes', methods=['GET'])
-def show_routes():
-    routes = []
-    for rule in app.url_map.iter_rules():
-        routes.append({
-            'endpoint': rule.endpoint,
-            'methods': list(rule.methods),
-            'rule': str(rule)
-        })
-    return {'routes': routes}
+# Rota catch-all para debug
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    print(f"CATCH ALL: {request.method} /{path}")
+    return f"Rota não encontrada: {request.method} /{path}"
 
 if __name__ == '__main__':
-    print("=== INICIANDO FLASK ===")
-    print("Rotas disponíveis:")
-    for rule in app.url_map.iter_rules():
-        print(f"  {rule} - Métodos: {list(rule.methods)}")
-    print("=====================")
+    print("=== INICIANDO SERVIDOR ===")
+    print("Testando rotas:")
+    with app.test_client() as client:
+        # Teste interno
+        response = client.post('/simple-xml')
+        print(f"Teste interno POST: {response.status_code}")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("Servidor rodando em http://localhost:5000")
+    print("=============================")
+    
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
