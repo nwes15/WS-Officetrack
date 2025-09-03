@@ -64,27 +64,16 @@ def consultar_cepv3():
         if "erro" in data:
             return gerar_erro_xml("Erro: CEP inválido ou não encontrado.", "Erro")
 
-# Verifica se o resultado retornou múltiplos endereços diferentes para este CEP (em API customizada ou banco próprio)
-        if isinstance(data, list):
-            complementos = {}
-            for idx, item in enumerate(data):
-                comp = (item.get("complemento") or "").strip()
-                chave = comp or f"semcomplemento_{idx}"
-                if chave not in complementos:
-                    complementos[chave] = {
-                        "id": str(idx + 1),
-                        "endereco_completo": montar_endereco_completo(item)
-                    }
-            if len(complementos) > 1:
-                return gerar_value_selection(list(complementos.values()))
-            elif list(complementos.values()):
-                # Só um endereço, segue normal
-                return gerar_resposta_xml_v2(data[0])
-
-        elif isinstance(data, dict):
-            # Apenas um endereço (ViaCEP padrão)
-            return gerar_resposta_xml_v2(data)
-
+        # Verifica se deve buscar múltiplos endereços
+        logging.debug(f"Verificando se deve buscar múltiplos endereços para CEP: {cep}")
+        
+        if deve_buscar_multiplos_enderecos(data, cep):
+            logging.debug("Buscando múltiplos endereços...")
+            enderecos_multiplos = buscar_enderecos_multiplos(data, cep)
+            
+            if enderecos_multiplos and len(enderecos_multiplos) > 1:
+                logging.debug(f"Encontrados {len(enderecos_multiplos)} endereços múltiplos")
+                return gerar_value_selection(enderecos_multiplos)
         
         # Retorna o formato normal ResponseV2
         logging.debug("Retornando ResponseV2 normal")
