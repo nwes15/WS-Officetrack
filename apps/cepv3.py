@@ -2,9 +2,9 @@ from flask import request, Response
 import requests
 from lxml import etree
 import logging
+import re
 from utils.gerar_erro import gerar_erro_xml
 from utils.adicionar_campo import adicionar_campo
-from utils.adicionar_table_field import adicionar_table_field
 
 def consultar_cepv3():
     try:
@@ -55,7 +55,6 @@ def consultar_cepv3():
         if not cep:
             return gerar_erro_xml("Erro: CEP não informado no campo CEP.", "CEP invalido")
 
-        # Primeira tentativa: API padrão do ViaCEP
         response = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
         if response.status_code != 200:
             return gerar_erro_xml("Erro ao consultar o CEP - Verifique e tente novamente.", "Erro")
@@ -64,19 +63,25 @@ def consultar_cepv3():
         if "erro" in data:
             return gerar_erro_xml("Erro: CEP inválido ou não encontrado.", "Erro")
 
-        # Verifica se há múltiplos endereços para este CEP
-        # Você pode implementar a lógica aqui baseada na sua fonte de dados
-        enderecos_multiplos = verificar_enderecos_multiplos(cep)
+        # Verifica se deve buscar múltiplos endereços
+        logging.debug(f"Verificando se deve buscar múltiplos endereços para CEP: {cep}")
         
-        if enderecos_multiplos and len(enderecos_multiplos) > 1:
-            # Retorna Value Selection se há múltiplas opções
-            return gerar_value_selection(enderecos_multiplos)
-        else:
-            # Retorna o formato normal ResponseV2 se há apenas um endereço
-            return gerar_resposta_xml_v2(data)
+        if deve_buscar_multiplos_enderecos(data, cep):
+            logging.debug("Buscando múltiplos endereços...")
+            enderecos_multiplos = buscar_enderecos_multiplos(data, cep)
+            
+            if enderecos_multiplos and len(enderecos_multiplos) > 1:
+                logging.debug(f"Encontrados {len(enderecos_multiplos)} endereços múltiplos")
+                return gerar_value_selection(enderecos_multiplos)
+        
+        # Retorna o formato normal ResponseV2
+        logging.debug("Retornando ResponseV2 normal")
+        return gerar_resposta_xml_v2(data)
 
     except Exception as e:
         logging.error(f"Erro interno: {str(e)}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}", "Erro")
 
 def deve_buscar_multiplos_enderecos(data, cep):
@@ -86,12 +91,14 @@ def deve_buscar_multiplos_enderecos(data, cep):
     """
     
     # CEPs que terminam em 000 geralmente são de logradouros grandes
-    if cep.replace("-", "").endswith("000"):
+    cep_limpo = cep.replace("-", "")
+    if cep_limpo.endswith("000"):
         logging.debug(f"CEP {cep} termina em 000 - pode ter múltiplos endereços")
         return True
     
     # Se o complemento está vazio, pode indicar que há várias opções
-    if not data.get("complemento") or data.get("complemento").strip() == "":
+    complemento = data.get("complemento", "")
+    if not complemento or complemento.strip() == "":
         logging.debug(f"CEP {cep} sem complemento - pode ter múltiplos endereços")
         return True
     
@@ -121,15 +128,14 @@ def buscar_enderecos_multiplos(data_viacep, cep):
         uf = data_viacep.get("uf", "")
         
         if not logradouro or not cidade or not uf:
+            logging.debug("Dados insuficientes para busca múltipla")
             return []
         
-        # Busca por logradouro similar na mesma cidade usando a API do ViaCEP
-        # Formato: https://viacep.com.br/ws/UF/Cidade/Logradouro/json/
-        
-        # Limpa o logradouro para a busca (remove números, remove palavras genéricas)
+        # Limpa o logradouro para a busca
         logradouro_busca = limpar_logradouro_para_busca(logradouro)
         
         if not logradouro_busca:
+            logging.debug("Logradouro não adequado para busca múltipla")
             return []
         
         # Monta URL de busca
@@ -147,6 +153,7 @@ def buscar_enderecos_multiplos(data_viacep, cep):
         
         # Se não é uma lista ou está vazia, não há múltiplos endereços
         if not isinstance(resultados, list) or len(resultados) <= 1:
+            logging.debug("Não encontrados múltiplos endereços")
             return []
         
         # Processa os resultados para o formato esperado
@@ -163,10 +170,7 @@ def buscar_enderecos_multiplos(data_viacep, cep):
                 "bairro": resultado.get("bairro", ""),
                 "cidade": resultado.get("localidade", ""),
                 "uf": resultado.get("uf", ""),
-                "ibge": resultado.get("ibge", ""),
-                "gia": resultado.get("gia", ""),
-                "ddd": resultado.get("ddd", ""),
-                "siafi": resultado.get("siafi", "")
+                "dados_completos": resultado  # Guarda todos os dados originais
             }
             enderecos.append(endereco)
         
@@ -185,8 +189,6 @@ def limpar_logradouro_para_busca(logradouro):
     Limpa o logradouro para fazer a busca na API do ViaCEP.
     Remove números, palavras muito específicas, etc.
     """
-    
-    import re
     
     # Remove números do logradouro
     logradouro_limpo = re.sub(r'\d+', '', logradouro).strip()
@@ -315,13 +317,6 @@ def gerar_resposta_xml_v2(data):
     adicionar_campo(fields, "ESTADO", data.get("estado", ""))
     adicionar_campo(fields, "UF", data.get("uf", ""))
     
-    # Adicionar TableField exemplo
-    table_field_id = "TABCAIXA1"
-    rows_data = [
-        {"TextTable": "Y", "CX1PESO": "9,0"},
-        {"TextTable": "X", "CX1PESO": "8,0"},
-    ]
-    adicionar_table_field(fields, table_field_id, rows_data)
     
     # Adicionar campos adicionais do ReturnValueV2
     etree.SubElement(return_value, "ShortText").text = "CEP ENCONTRADO - INFOS ABAIXO"
