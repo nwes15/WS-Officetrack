@@ -6,26 +6,22 @@ app = Flask(__name__)
 def simple_xml():
     xml_data = '''
     <Response>
-     <Message>
-     <Text>Invalid data</Text>
-     <Icon>Info</Icon>
-     </Message>
-     <ReturnValue>
-     <Items>
-     <Item>
-     <Text>One</Text>
-     <Value>1</Value>
-     </Item>
-     <Item>
-     <Text>Two</Text>
-     <Value>2</Value>
-     </Item>
-     <Item>
-     <Text>Three</Text>
-     <Value>3</Value>
-     </Item>
-     </Items>
-     </ReturnValue>
+        <ReturnValue>
+            <Items>
+                <Item>
+                    <Text>One</Text>
+                    <Value>1</Value>
+                </Item>
+                <Item>
+                    <Text>Two</Text>
+                    <Value>2</Value>
+                </Item>
+                <Item>
+                    <Text>Three</Text>
+                    <Value>3</Value>
+                </Item>
+            </Items>
+        </ReturnValue>
     </Response>
     '''
     return Response(xml_data.encode('utf-16'), mimetype='application/xml')
