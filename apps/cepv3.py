@@ -6,7 +6,7 @@ from utils.gerar_erro import gerar_erro_xml
 from utils.adicionar_campo import adicionar_campo
 from utils.adicionar_table_field import adicionar_table_field
 
-def consultar_cep():
+def consultar_cepv3():
     try:
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
