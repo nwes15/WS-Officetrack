@@ -6,7 +6,7 @@ from utils.gerar_erro import gerar_erro_xml
 from utils.adicionar_campo import adicionar_campo
 from utils.adicionar_table_field import adicionar_table_field
 
-def consultar_cepv3():
+def consultar_cep():
     try:
         content_type = request.headers.get("Content-Type", "").lower()
         logging.debug(f"Tipo de conteúdo recebido: {content_type}")
@@ -79,56 +79,160 @@ def consultar_cepv3():
         logging.error(f"Erro interno: {str(e)}")
         return gerar_erro_xml(f"Erro interno no servidor: {str(e)}", "Erro")
 
-def verificar_enderecos_multiplos(cep):
+def deve_buscar_multiplos_enderecos(data, cep):
     """
-    Verifica se há múltiplos endereços para um CEP.
-    Você deve implementar sua lógica específica aqui.
-    
-    Exemplos de fontes:
-    - Banco de dados próprio
-    - API alternativa
-    - Arquivo CSV/JSON
+    Verifica se o CEP/endereço indica que pode haver múltiplos endereços.
+    Baseado em características como CEP terminado em 000, complemento vazio, etc.
     """
     
-    # EXEMPLO: Simulando múltiplos endereços para alguns CEPs
-    enderecos_exemplo = {
-        "01310-100": [
-            {
-                "id": "1",
-                "endereco_completo": "Av. Paulista, 1000 - Bela Vista, São Paulo - SP",
-                "logradouro": "Avenida Paulista",
-                "numero": "1000",
-                "bairro": "Bela Vista",
-                "cidade": "São Paulo",
-                "uf": "SP"
-            },
-            {
-                "id": "2", 
-                "endereco_completo": "Av. Paulista, 1100 - Bela Vista, São Paulo - SP",
-                "logradouro": "Avenida Paulista",
-                "numero": "1100",
-                "bairro": "Bela Vista",
-                "cidade": "São Paulo",
-                "uf": "SP"
-            },
-            {
-                "id": "3",
-                "endereco_completo": "Av. Paulista, 1200 - Bela Vista, São Paulo - SP", 
-                "logradouro": "Avenida Paulista",
-                "numero": "1200",
-                "bairro": "Bela Vista",
-                "cidade": "São Paulo",
-                "uf": "SP"
+    # CEPs que terminam em 000 geralmente são de logradouros grandes
+    if cep.replace("-", "").endswith("000"):
+        logging.debug(f"CEP {cep} termina em 000 - pode ter múltiplos endereços")
+        return True
+    
+    # Se o complemento está vazio, pode indicar que há várias opções
+    if not data.get("complemento") or data.get("complemento").strip() == "":
+        logging.debug(f"CEP {cep} sem complemento - pode ter múltiplos endereços")
+        return True
+    
+    # Logradouros muito genéricos (avenidas, ruas principais)
+    logradouro = data.get("logradouro", "").lower()
+    logradouros_genericos = [
+        "avenida", "rodovia", "estrada", "via", "marginal", 
+        "alameda principal", "rua principal"
+    ]
+    
+    for generico in logradouros_genericos:
+        if generico in logradouro:
+            logging.debug(f"Logradouro genérico detectado: {logradouro}")
+            return True
+    
+    return False
+
+def buscar_enderecos_multiplos(data_viacep, cep):
+    """
+    Busca múltiplos endereços baseado nos dados retornados pelo ViaCEP.
+    Faz buscas por logradouro na mesma cidade para encontrar variações.
+    """
+    
+    try:
+        logradouro = data_viacep.get("logradouro", "")
+        cidade = data_viacep.get("localidade", "")
+        uf = data_viacep.get("uf", "")
+        
+        if not logradouro or not cidade or not uf:
+            return []
+        
+        # Busca por logradouro similar na mesma cidade usando a API do ViaCEP
+        # Formato: https://viacep.com.br/ws/UF/Cidade/Logradouro/json/
+        
+        # Limpa o logradouro para a busca (remove números, remove palavras genéricas)
+        logradouro_busca = limpar_logradouro_para_busca(logradouro)
+        
+        if not logradouro_busca:
+            return []
+        
+        # Monta URL de busca
+        url_busca = f"https://viacep.com.br/ws/{uf}/{cidade}/{logradouro_busca}/json/"
+        
+        logging.debug(f"Buscando múltiplos endereços em: {url_busca}")
+        
+        response = requests.get(url_busca, timeout=10)
+        
+        if response.status_code != 200:
+            logging.error(f"Erro na busca de múltiplos endereços: {response.status_code}")
+            return []
+        
+        resultados = response.json()
+        
+        # Se não é uma lista ou está vazia, não há múltiplos endereços
+        if not isinstance(resultados, list) or len(resultados) <= 1:
+            return []
+        
+        # Processa os resultados para o formato esperado
+        enderecos = []
+        for i, resultado in enumerate(resultados[:10]):  # Limita a 10 resultados
+            endereco_completo = montar_endereco_completo(resultado)
+            
+            endereco = {
+                "id": str(i + 1),
+                "endereco_completo": endereco_completo,
+                "cep": resultado.get("cep", ""),
+                "logradouro": resultado.get("logradouro", ""),
+                "complemento": resultado.get("complemento", ""),
+                "bairro": resultado.get("bairro", ""),
+                "cidade": resultado.get("localidade", ""),
+                "uf": resultado.get("uf", ""),
+                "ibge": resultado.get("ibge", ""),
+                "gia": resultado.get("gia", ""),
+                "ddd": resultado.get("ddd", ""),
+                "siafi": resultado.get("siafi", "")
             }
-        ]
-    }
+            enderecos.append(endereco)
+        
+        logging.debug(f"Encontrados {len(enderecos)} endereços múltiplos")
+        return enderecos
+        
+    except requests.RequestException as e:
+        logging.error(f"Erro na requisição para buscar múltiplos endereços: {str(e)}")
+        return []
+    except Exception as e:
+        logging.error(f"Erro ao processar múltiplos endereços: {str(e)}")
+        return []
+
+def limpar_logradouro_para_busca(logradouro):
+    """
+    Limpa o logradouro para fazer a busca na API do ViaCEP.
+    Remove números, palavras muito específicas, etc.
+    """
     
-    # Aqui você implementaria sua lógica real:
-    # - Consulta ao banco de dados
-    # - Chamada para API específica
-    # - Leitura de arquivo com endereços
+    import re
     
-    return enderecos_exemplo.get(cep, [])
+    # Remove números do logradouro
+    logradouro_limpo = re.sub(r'\d+', '', logradouro).strip()
+    
+    # Remove palavras muito específicas que podem não dar match
+    palavras_remover = ['de', 'da', 'do', 'das', 'dos', 'e', '&']
+    palavras = logradouro_limpo.split()
+    palavras_filtradas = [p for p in palavras if p.lower() not in palavras_remover and len(p) > 2]
+    
+    # Se sobrou pelo menos uma palavra, usa ela
+    if palavras_filtradas:
+        return ' '.join(palavras_filtradas[:3])  # Pega no máximo 3 palavras
+    
+    # Se não sobrou nada útil, retorna o original
+    return logradouro
+
+def montar_endereco_completo(dados_endereco):
+    """
+    Monta o endereço completo para exibição na lista de seleção.
+    """
+    
+    partes = []
+    
+    # Logradouro
+    if dados_endereco.get("logradouro"):
+        partes.append(dados_endereco["logradouro"])
+    
+    # Complemento (se houver)
+    if dados_endereco.get("complemento") and dados_endereco["complemento"].strip():
+        partes.append(f"({dados_endereco['complemento']})")
+    
+    # Bairro
+    if dados_endereco.get("bairro"):
+        partes.append(f"- {dados_endereco['bairro']}")
+    
+    # Cidade e UF
+    cidade = dados_endereco.get("localidade", "")
+    uf = dados_endereco.get("uf", "")
+    if cidade and uf:
+        partes.append(f", {cidade} - {uf}")
+    
+    # CEP
+    if dados_endereco.get("cep"):
+        partes.append(f" (CEP: {dados_endereco['cep']})")
+    
+    return " ".join(partes)
 
 def gerar_value_selection(enderecos):
     """Gera XML no formato Value Selection para múltiplos endereços."""
