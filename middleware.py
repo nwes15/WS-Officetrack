@@ -17,6 +17,7 @@ from apps.cepv2 import consultar_cepv2
 from apps.talk_descript import consultar_groqv2
 from apps.rota import simple_xml
 from apps.cepv3 import consultar_cepv3
+from apps.validar_extintores import validar_extintores
 
 
 load_dotenv()
@@ -43,6 +44,7 @@ app.add_url_rule("/consultar_cepv2", methods=['POST'], view_func=consultar_cepv2
 app.add_url_rule("/consultar_groqv2", methods=['POST'], view_func=consultar_groqv2)
 app.add_url_rule("/simple-xml", methods=['GET'], view_func=simple_xml)
 app.add_url_rule("/consultar_cepv3", methods=['POST'], view_func=consultar_cepv3)
+app.add_url_rule("/validar_extintores", methods=['POST'], view_func=validar_extintores)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
