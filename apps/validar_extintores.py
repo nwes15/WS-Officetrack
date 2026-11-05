@@ -104,7 +104,7 @@ def validar_extintores():
                 mensagem=mensagem_alerta,
                 short_text="NOK",
                 dup="1",
-                retorno="NOK! Duplicidades encontradas, por favor, verifique e corrija!"
+                retorno="NOK"
             )
 
         # Se não há duplicidades: sucesso!
@@ -115,7 +115,7 @@ def validar_extintores():
             mensagem=msg_sucesso,
             short_text="OK",
             dup="0",
-            retorno=msg_sucesso
+            retorno="OK"
         )
 
     except Exception as e:
@@ -163,4 +163,4 @@ def gerar_resposta_xml(sucesso, mensagem, short_text, dup="0", retorno=""):
     xml_final = xml_header + xml_body
 
     return Response(xml_final.encode("utf-16"), content_type="application/xml; charset=utf-16")
-
+    
