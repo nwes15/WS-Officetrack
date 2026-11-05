@@ -154,7 +154,7 @@ def gerar_resposta_xml(sucesso, mensagem, short_text, dup="0", retorno=""):
     adicionar_campo(fields, "RETORNO", str(retorno))
 
     etree.SubElement(return_value, "ShortText").text = short_text
-    etree.SubElement(return_value, "LongText").text = mensagem
+    # etree.SubElement(return_value, "LongText").text = mensagem
     etree.SubElement(return_value, "Value").text = "1" if sucesso else "0"
 
     # Declaração e encoding UTF-16 obrigatório
