@@ -94,27 +94,28 @@ def validar_extintores():
             detalhes = []
             for d in duplicados:
                 linhas_str = ", ".join(str(n) for n in extintores_por_linha[d])
-                detalhes.append(f"'{d}' (Linhas: {linhas_str})")
+                detalhes.append(f"• {d} (Linhas: {linhas_str})")
 
-            mensagem_alerta = "ATENÇÃO: Existem extintores repetidos na tabela!\n" + "\n".join(detalhes)
+            mensagem_alerta = "NOK! Duplicidades encontradas, por favor, verifique e corrija!\n\n" + "\n".join(detalhes)
             logging.info(f"Duplicidades encontradas: {mensagem_alerta}")
 
             return gerar_resposta_xml(
                 sucesso=False,
                 mensagem=mensagem_alerta,
-                short_text="Duplicado",
+                short_text="NOK",
                 dup="1",
-                retorno=f"Duplicado: {', '.join(duplicados)}"
+                retorno="NOK! Duplicidades encontradas, por favor, verifique e corrija!"
             )
 
         # Se não há duplicidades: sucesso!
-        logging.info("Validação concluída: Nenhum extintor duplicado.")
+        msg_sucesso = "OK! Pode continuar o preenchimento e envio do formulário;"
+        logging.info(f"Validação concluída: {msg_sucesso}")
         return gerar_resposta_xml(
             sucesso=True,
-            mensagem="Tabela validada com sucesso! Nenhum extintor repetido.",
-            short_text="Validado",
+            mensagem=msg_sucesso,
+            short_text="OK",
             dup="0",
-            retorno="Validação OK: Sem duplicidades"
+            retorno=msg_sucesso
         )
 
     except Exception as e:
