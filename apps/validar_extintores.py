@@ -21,7 +21,6 @@ def validar_extintores():
                 sucesso=False,
                 mensagem="Não foi possível encontrar dados XML na requisição.",
                 short_text="Erro XML",
-                dup="1",
                 retorno="Erro: Dados XML não encontrados"
             )
 
@@ -38,7 +37,6 @@ def validar_extintores():
                 sucesso=False,
                 mensagem=f"Erro ao processar estrutura do XML: {e}",
                 short_text="Erro XML",
-                dup="1",
                 retorno="Erro ao parsear XML"
             )
 
@@ -54,7 +52,6 @@ def validar_extintores():
                 sucesso=False,
                 mensagem="Tabela de extintores não foi encontrada no formulário.",
                 short_text="Sem Tabela",
-                dup="0",
                 retorno="Tabela de extintores não encontrada"
             )
 
@@ -67,7 +64,6 @@ def validar_extintores():
                 sucesso=True,
                 mensagem="Nenhuma linha cadastrada na tabela para validar.",
                 short_text="Tabela Vazia",
-                dup="0",
                 retorno="Tabela vazia"
             )
 
@@ -103,8 +99,8 @@ def validar_extintores():
                 sucesso=False,
                 mensagem=mensagem_alerta,
                 short_text="NOK",
-                dup="1",
-                retorno="NOK"
+                retorno="NOK",
+                long_text="Toque na lixeira para nova consulta após correção"
             )
 
         # Se não há duplicidades: sucesso!
@@ -114,8 +110,8 @@ def validar_extintores():
             sucesso=True,
             mensagem=msg_sucesso,
             short_text="OK",
-            dup="0",
-            retorno="OK"
+            retorno="OK",
+            long_text=""
         )
 
     except Exception as e:
@@ -124,12 +120,11 @@ def validar_extintores():
             sucesso=False,
             mensagem=f"Erro interno no servidor: {str(e)}",
             short_text="Erro",
-            dup="1",
             retorno=f"Erro interno: {str(e)}"
         )
 
 
-def gerar_resposta_xml(sucesso, mensagem, short_text, dup="0", retorno=""):
+def gerar_resposta_xml(sucesso, mensagem, short_text, retorno="", long_text=""):
     """
     Gera o XML no padrão ResponseV2 em UTF-16 exigido pelo OfficeTrack.
     Não inclui a tag <Action>SendEntry</Action>, mantendo o formulário aberto.
@@ -149,16 +144,13 @@ def gerar_resposta_xml(sucesso, mensagem, short_text, dup="0", retorno=""):
     return_value = etree.SubElement(response, "ReturnValueV2")
     fields = etree.SubElement(return_value, "Fields")
 
-    # Atualiza os campos auxiliares no formulário (se existirem)
-    adicionar_campo(fields, "DUP", str(dup))
+    # Atualiza apenas o campo RETORNO no formulário
     adicionar_campo(fields, "RETORNO", str(retorno))
-    if not sucesso:
-        # Tenta forçar a limpeza do botão no formulário
-        adicionar_campo(fields, "VALIDA", "")
 
     etree.SubElement(return_value, "ShortText").text = short_text
-    # etree.SubElement(return_value, "LongText").text = mensagem
-    etree.SubElement(return_value, "Value").text = "1" if sucesso else ""
+    if long_text:
+        etree.SubElement(return_value, "LongText").text = long_text
+    etree.SubElement(return_value, "Value").text = "1" if sucesso else "0"
 
     # Declaração e encoding UTF-16 obrigatório
     xml_header = '<?xml version="1.0" encoding="utf-16"?>\n'
