@@ -152,10 +152,13 @@ def gerar_resposta_xml(sucesso, mensagem, short_text, dup="0", retorno=""):
     # Atualiza os campos auxiliares no formulário (se existirem)
     adicionar_campo(fields, "DUP", str(dup))
     adicionar_campo(fields, "RETORNO", str(retorno))
+    if not sucesso:
+        # Tenta forçar a limpeza do botão no formulário
+        adicionar_campo(fields, "VALIDA", "")
 
     etree.SubElement(return_value, "ShortText").text = short_text
     # etree.SubElement(return_value, "LongText").text = mensagem
-    etree.SubElement(return_value, "Value").text = "1" if sucesso else "0"
+    etree.SubElement(return_value, "Value").text = "1" if sucesso else ""
 
     # Declaração e encoding UTF-16 obrigatório
     xml_header = '<?xml version="1.0" encoding="utf-16"?>\n'
