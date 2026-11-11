@@ -9,7 +9,7 @@ from io import StringIO
 from utils.xml_da_requisicao import obter_xml_da_requisicao
 from utils.adicionar_campo import adicionar_campo
 
-EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:18080")
+EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL") or os.getenv("EVOLUTION_URL") or "https://whatsapp.cloudwesns.com.br"
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "default")
 

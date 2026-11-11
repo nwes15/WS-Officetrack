@@ -13,7 +13,7 @@ from utils.adicionar_campo import adicionar_campo
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "aprovacoes_externas.db")
 
-EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:18080")
+EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL") or os.getenv("EVOLUTION_URL") or "https://whatsapp.cloudwesns.com.br"
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "default")
 
