@@ -33,9 +33,14 @@ def _init_db():
                 nome_respondente TEXT DEFAULT '',
                 observacao TEXT DEFAULT '',
                 criado_em TEXT,
-                respondido_em TEXT DEFAULT ''
+                respondido_em TEXT DEFAULT '',
+                diagnostico_wa TEXT DEFAULT ''
             )
         """)
+        try:
+            conn.execute("ALTER TABLE transacoes ADD COLUMN diagnostico_wa TEXT DEFAULT ''")
+        except Exception:
+            pass
         conn.commit()
 
 
@@ -100,6 +105,11 @@ def iniciar_aprovacao_externa():
             or campos_form.get("TEL")
             or ""
         )
+        if not tel_bruto:
+            for k, v in campos_form.items():
+                if v and any(p in k for p in ("TEL", "WHATS", "CEL", "FONE")):
+                    tel_bruto = v
+                    break
         tel_limpo = re.sub(r"\D", "", tel_bruto)
 
         motivo = (
@@ -113,23 +123,15 @@ def iniciar_aprovacao_externa():
         tx_id = str(uuid.uuid4())[:8].upper()
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                """INSERT INTO transacoes (tx_id, task_num, tecnico, nome_aprovador, tel_aprovador, motivo, status, criado_em)
-                   VALUES (?, ?, ?, ?, ?, ?, 'AGUARDANDO', ?)""",
-                (tx_id, task_num, tecnico, nome_aprovador, tel_limpo, motivo, agora)
-            )
-            conn.commit()
-
         base_url = _obter_base_url()
         url_responder = f"{base_url}/responder/{tx_id}"
         url_espera = f"{base_url}/espera/{tx_id}"
         url_webservice_retorno = f"{base_url}/finalizar_aprovacao/{tx_id}"
 
-        evo_url = os.getenv("EVOLUTION_API_URL", EVOLUTION_API_URL).strip().rstrip("/")
-        evo_key = os.getenv("EVOLUTION_API_KEY", EVOLUTION_API_KEY).strip()
+        evo_url = os.getenv("EVOLUTION_API_URL", "").strip().rstrip("/") or EVOLUTION_API_URL.strip().rstrip("/")
+        evo_key = os.getenv("EVOLUTION_API_KEY", "").strip() or EVOLUTION_API_KEY.strip()
 
-        logging.info(f"[APROVACAO] tel_limpo='{tel_limpo}' | evo_url='{evo_url}' | has_key={bool(evo_key)}")
+        diagnostico_wa = ""
 
         # Se tiver Evolution API configurada e telefone válido, tenta enviar automaticamente via WhatsApp
         if tel_limpo and len(tel_limpo) >= 10 and evo_key:
@@ -148,10 +150,25 @@ def iniciar_aprovacao_externa():
                     timeout=10
                 )
                 logging.info(f"[APROVACAO] Evolution Go envio para {num_wa}: HTTP {resp_wa.status_code} - {resp_wa.text}")
+                if resp_wa.status_code in (200, 201):
+                    diagnostico_wa = f"✅ WhatsApp disparado para +{num_wa}"
+                else:
+                    diagnostico_wa = f"⚠️ Erro Evolution HTTP {resp_wa.status_code}: {resp_wa.text[:120]}"
             except Exception as ex:
                 logging.warning(f"[APROVACAO] Falha ao enviar WhatsApp automático (Evolution): {ex}")
+                diagnostico_wa = f"⚠️ Falha conexão ({evo_url}): {str(ex)[:120]}"
         else:
-            logging.warning(f"[APROVACAO] Envio WhatsApp ignorado! tel_limpo='{tel_limpo}', has_key={bool(evo_key)}")
+            campos_keys = list(campos_form.keys())
+            diagnostico_wa = f"⚠️ Não disparado: tel='{tel_limpo}' | has_key={bool(evo_key)} | evo_url='{evo_url}' | campos={campos_keys}"
+            logging.warning(f"[APROVACAO] {diagnostico_wa}")
+
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                """INSERT INTO transacoes (tx_id, task_num, tecnico, nome_aprovador, tel_aprovador, motivo, status, criado_em, diagnostico_wa)
+                   VALUES (?, ?, ?, ?, ?, ?, 'AGUARDANDO', ?, ?)""",
+                (tx_id, task_num, tecnico, nome_aprovador, tel_limpo, motivo, agora, diagnostico_wa)
+            )
+            conn.commit()
 
         # Retorna Action=OpenUrl conforme Página 167 e 171 do manual OfficeTrack
         response = etree.Element("Response")
@@ -237,6 +254,9 @@ def sala_espera(tx_id):
                 
                 <a href="{{ wa_link }}" target="_blank" class="btn btn-wa">📲 Enviar Link via WhatsApp</a>
                 <button onclick="copiarLink()" class="btn btn-copy" id="btn-copy">📋 Copiar Link de Aprovação</button>
+                <div style="margin-top:12px; font-size:11px; color:#475569; background:#f1f5f9; padding:8px; border-radius:8px; word-break:break-word;">
+                    {{ diagnostico_wa }}
+                </div>
             </div>
 
             <div id="success-section" class="success-box">
@@ -289,7 +309,8 @@ def sala_espera(tx_id):
         nome_aprovador=row["nome_aprovador"],
         task_num=row["task_num"],
         url_responder=url_responder,
-        wa_link=wa_link
+        wa_link=wa_link,
+        diagnostico_wa=row["diagnostico_wa"] if "diagnostico_wa" in row.keys() else ""
     )
 
 

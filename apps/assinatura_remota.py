@@ -38,9 +38,14 @@ def _init_db():
                 ip_assinante TEXT DEFAULT '',
                 hash_validacao TEXT DEFAULT '',
                 criado_em TEXT,
-                assinado_em TEXT DEFAULT ''
+                assinado_em TEXT DEFAULT '',
+                diagnostico_wa TEXT DEFAULT ''
             )
         """)
+        try:
+            conn.execute("ALTER TABLE assinaturas ADD COLUMN diagnostico_wa TEXT DEFAULT ''")
+        except Exception:
+            pass
         conn.commit()
     try:
         os.chmod(DB_PATH, 0o666)
@@ -109,6 +114,11 @@ def iniciar_assinatura_remota():
             or campos_form.get("TEL")
             or ""
         )
+        if not tel_bruto:
+            for k, v in campos_form.items():
+                if v and any(p in k for p in ("TEL", "WHATS", "CEL", "FONE")):
+                    tel_bruto = v
+                    break
         tel_limpo = re.sub(r"\D", "", tel_bruto)
 
         resumo = (
@@ -122,23 +132,15 @@ def iniciar_assinatura_remota():
         tx_id = str(uuid.uuid4())[:8].upper()
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                """INSERT INTO assinaturas (tx_id, task_num, tecnico, nome_cliente, tel_cliente, resumo_servico, status, criado_em)
-                   VALUES (?, ?, ?, ?, ?, ?, 'AGUARDANDO', ?)""",
-                (tx_id, task_num, tecnico, nome_cliente, tel_limpo, resumo, agora)
-            )
-            conn.commit()
-
         base_url = _obter_base_url()
         url_assinar = f"{base_url}/assinar/{tx_id}"
         url_espera = f"{base_url}/espera_assinatura/{tx_id}"
         url_retorno = f"{base_url}/finalizar_assinatura/{tx_id}"
 
-        evo_url = os.getenv("EVOLUTION_API_URL", EVOLUTION_API_URL).strip().rstrip("/")
-        evo_key = os.getenv("EVOLUTION_API_KEY", EVOLUTION_API_KEY).strip()
+        evo_url = os.getenv("EVOLUTION_API_URL", "").strip().rstrip("/") or EVOLUTION_API_URL.strip().rstrip("/")
+        evo_key = os.getenv("EVOLUTION_API_KEY", "").strip() or EVOLUTION_API_KEY.strip()
 
-        logging.info(f"[ASSINATURA] tel_limpo='{tel_limpo}' | evo_url='{evo_url}' | has_key={bool(evo_key)}")
+        diagnostico_wa = ""
 
         # Tenta disparo automático pelo Evolution Go se configurado
         if tel_limpo and len(tel_limpo) >= 10 and evo_key:
@@ -157,10 +159,25 @@ def iniciar_assinatura_remota():
                     timeout=10
                 )
                 logging.info(f"[ASSINATURA] Evolution Go envio para {num_wa}: HTTP {resp_wa.status_code} - {resp_wa.text}")
+                if resp_wa.status_code in (200, 201):
+                    diagnostico_wa = f"✅ WhatsApp disparado para +{num_wa}"
+                else:
+                    diagnostico_wa = f"⚠️ Erro Evolution HTTP {resp_wa.status_code}: {resp_wa.text[:120]}"
             except Exception as ex:
                 logging.warning(f"[ASSINATURA] Falha ao enviar link de assinatura via Evolution: {ex}")
+                diagnostico_wa = f"⚠️ Falha conexão ({evo_url}): {str(ex)[:120]}"
         else:
-            logging.warning(f"[ASSINATURA] Envio WhatsApp ignorado! tel_limpo='{tel_limpo}', has_key={bool(evo_key)}")
+            campos_keys = list(campos_form.keys())
+            diagnostico_wa = f"⚠️ Não disparado: tel='{tel_limpo}' | has_key={bool(evo_key)} | evo_url='{evo_url}' | campos={campos_keys}"
+            logging.warning(f"[ASSINATURA] {diagnostico_wa}")
+
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                """INSERT INTO assinaturas (tx_id, task_num, tecnico, nome_cliente, tel_cliente, resumo_servico, status, criado_em, diagnostico_wa)
+                   VALUES (?, ?, ?, ?, ?, ?, 'AGUARDANDO', ?, ?)""",
+                (tx_id, task_num, tecnico, nome_cliente, tel_limpo, resumo, agora, diagnostico_wa)
+            )
+            conn.commit()
 
         response = etree.Element("Response")
         ret = etree.SubElement(response, "ReturnValue")
@@ -242,6 +259,9 @@ def sala_espera_assinatura(tx_id):
 
                 <a href="{{ wa_link }}" target="_blank" class="btn btn-wa">📲 Enviar Link via WhatsApp</a>
                 <button type="button" onclick="copiarLink()" class="btn btn-copy" id="btn-copy">📋 Copiar Link de Assinatura</button>
+                <div style="margin-top:12px; font-size:11px; color:#475569; background:#f1f5f9; padding:8px; border-radius:8px; word-break:break-word;">
+                    {{ diagnostico_wa }}
+                </div>
             </div>
 
             <div id="success-section" class="success-box">
@@ -293,7 +313,8 @@ def sala_espera_assinatura(tx_id):
         nome_cliente=row["nome_cliente"],
         task_num=row["task_num"],
         url_assinar=url_assinar,
-        wa_link=wa_link
+        wa_link=wa_link,
+        diagnostico_wa=row["diagnostico_wa"] if "diagnostico_wa" in row.keys() else ""
     )
 
 
