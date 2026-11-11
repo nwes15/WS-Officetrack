@@ -1,0 +1,13 @@
+services:
+  ws-officetrack:
+    build: .
+    container_name: ws-officetrack
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      # - GROQ_API_KEY=sua_chave_aqui
+

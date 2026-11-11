@@ -19,6 +19,22 @@ from apps.rota import simple_xml
 from apps.cepv3 import consultar_cepv3
 from apps.validar_extintores import validar_extintores
 from apps.validar_duplicidade import validar_duplicidade
+from apps.consultar_cnpj import consultar_cnpj
+from apps.consultar_placa import consultar_placa
+from apps.gerar_laudo_ia import gerar_laudo_ia
+from apps.diagnostico_ia import diagnostico_ia
+from apps.calcular_orcamento import calcular_orcamento
+from apps.historico_equipamento import historico_equipamento
+from apps.validar_conformidade_nr import validar_conformidade_nr
+from apps.notificar_whatsapp import notificar_whatsapp
+from apps.aprovacao_externa import (
+    iniciar_aprovacao_externa,
+    sala_espera,
+    responder_externo,
+    status_aprovacao_api,
+    finalizar_aprovacao,
+    consultar_aprovacao_manual,
+)
 
 
 load_dotenv()
@@ -27,6 +43,15 @@ app = Flask(__name__)
 
 # Configuração do logger
 logging.basicConfig(level=logging.DEBUG)
+
+# Rota de healthcheck / raiz para Cloudflare e verificações
+@app.route("/", methods=["GET"])
+def home():
+    return {
+        "status": "online",
+        "service": "WS-Officetrack Middleware",
+        "message": "Serviços ativos e operacionais."
+    }, 200
 
 # Registrar as rotas de cada serviço
 app.add_url_rule("/consultar_cep", methods=["POST"], view_func=consultar_cep)
@@ -47,6 +72,20 @@ app.add_url_rule("/simple-xml", methods=['GET'], view_func=simple_xml)
 app.add_url_rule("/consultar_cepv3", methods=['POST'], view_func=consultar_cepv3)
 app.add_url_rule("/validar_extintores", methods=['POST'], view_func=validar_extintores)
 app.add_url_rule("/validar_duplicidade", methods=['POST'], view_func=validar_duplicidade)
+app.add_url_rule("/consultar_cnpj", methods=['POST'], view_func=consultar_cnpj)
+app.add_url_rule("/consultar_placa", methods=['POST'], view_func=consultar_placa)
+app.add_url_rule("/gerar_laudo_ia", methods=['POST'], view_func=gerar_laudo_ia)
+app.add_url_rule("/diagnostico_ia", methods=['POST'], view_func=diagnostico_ia)
+app.add_url_rule("/calcular_orcamento", methods=['POST'], view_func=calcular_orcamento)
+app.add_url_rule("/historico_equipamento", methods=['POST'], view_func=historico_equipamento)
+app.add_url_rule("/validar_conformidade_nr", methods=['POST'], view_func=validar_conformidade_nr)
+app.add_url_rule("/notificar_whatsapp", methods=['POST'], view_func=notificar_whatsapp)
+app.add_url_rule("/iniciar_aprovacao_externa", methods=['POST'], view_func=iniciar_aprovacao_externa)
+app.add_url_rule("/espera/<tx_id>", methods=['GET'], view_func=sala_espera)
+app.add_url_rule("/responder/<tx_id>", methods=['GET', 'POST'], view_func=responder_externo)
+app.add_url_rule("/api/status_aprovacao/<tx_id>", methods=['GET'], view_func=status_aprovacao_api)
+app.add_url_rule("/finalizar_aprovacao/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_aprovacao)
+app.add_url_rule("/consultar_aprovacao_manual", methods=['POST'], view_func=consultar_aprovacao_manual)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)
