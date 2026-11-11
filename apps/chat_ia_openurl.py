@@ -185,7 +185,7 @@ def tela_chat_ia(chat_id):
         <div class="app-container">
             <div class="header">
                 <div>
-                    <div class="header-title">🤖 Assistente IA • GPT-4o-mini</div>
+                    <div class="header-title">🤖 Assistente IA • Officetrack</div>
                     <div class="header-sub">OS {{ task_num }} • Sessão #{{ chat_id }}</div>
                 </div>
                 <button class="btn-resumo" id="btn-resumo" onclick="gerarResumo()">📌 Salvar p/ Form</button>
@@ -199,7 +199,7 @@ def tela_chat_ia(chat_id):
                 {% for m in mensagens %}
                     <div class="msg {{ 'msg-user' if m.role == 'user' else 'msg-assistant' }}">{{ m.content }}</div>
                 {% endfor %}
-                <div class="typing" id="typing">GPT-4o-mini está analisando e escrevendo...</div>
+                <div class="typing" id="typing">OC 3con Agent está analisando e escrevendo...</div>
             </div>
 
             <div class="input-area">
@@ -235,14 +235,18 @@ def tela_chat_ia(chat_id):
                 return div;
             }
 
+            let enviando = false;
+
             async function enviarMensagem() {
+                if (enviando) return;
                 const texto = msgInput.value.trim();
                 if (!texto) return;
 
+                enviando = true;
                 msgInput.value = "";
+                msgInput.blur(); // recolhe o teclado para o técnico ler a resposta confortavelmente
                 adicionarBalao("user", texto);
 
-                msgInput.disabled = true;
                 btnSend.disabled = true;
                 typing.style.display = "block";
                 rolarParaBaixo();
@@ -315,9 +319,8 @@ def tela_chat_ia(chat_id):
                     }
                 } finally {
                     typing.style.display = "none";
-                    msgInput.disabled = false;
+                    enviando = false;
                     btnSend.disabled = false;
-                    msgInput.focus();
                 }
             }
 
