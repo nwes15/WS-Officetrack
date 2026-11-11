@@ -82,15 +82,42 @@ def iniciar_assinatura_remota():
         task_num = root.findtext(".//Task/TaskNum") or "N/A"
         tecnico = root.findtext(".//Employee/EmployeeNumber") or "Técnico"
 
-        nome_node = root.xpath(".//Field[Id='NOME_CLIENTE' or ID='NOME_CLIENTE' or Id='NOME_APROVADOR' or ID='NOME_APROVADOR']/Value")
-        nome_cliente = nome_node[0].text.strip() if nome_node and nome_node[0].text else "Cliente"
+        # Extrai todos os campos de forma case-insensitive (aceita Id, ID, id)
+        campos_form = {}
+        for f in root.findall(".//Field"):
+            fid = f.findtext("Id") or f.findtext("ID") or f.findtext("id")
+            fval = f.findtext("Value") or ""
+            if fid:
+                campos_form[fid.strip().upper()] = fval.strip()
 
-        tel_node = root.xpath(".//Field[Id='TEL_CLIENTE' or ID='TEL_CLIENTE' or Id='TEL_APROVADOR' or ID='TELEFONE']/Value")
-        tel_bruto = tel_node[0].text.strip() if tel_node and tel_node[0].text else ""
+        logging.info(f"[ASSINATURA] Campos recebidos do XML: {campos_form}")
+
+        nome_cliente = (
+            campos_form.get("NOME_CLIENTE")
+            or campos_form.get("NOME_APROVADOR")
+            or campos_form.get("CLIENTE")
+            or "Cliente"
+        )
+
+        tel_bruto = (
+            campos_form.get("TEL_CLIENTE")
+            or campos_form.get("TEL_APROVADOR")
+            or campos_form.get("TELEFONE")
+            or campos_form.get("WHATSAPP")
+            or campos_form.get("CELULAR")
+            or campos_form.get("FONE")
+            or campos_form.get("TEL")
+            or ""
+        )
         tel_limpo = re.sub(r"\D", "", tel_bruto)
 
-        resumo_node = root.xpath(".//Field[Id='RESUMO_SERVICO' or ID='RESUMO_SERVICO' or Id='OBS_TECNICA' or ID='OBS' or Id='MOTIVO_SOLICITACAO']/Value")
-        resumo = resumo_node[0].text.strip() if resumo_node and resumo_node[0].text else "Confirmação de execução dos serviços técnicos."
+        resumo = (
+            campos_form.get("RESUMO_SERVICO")
+            or campos_form.get("OBS_TECNICA")
+            or campos_form.get("OBS")
+            or campos_form.get("MOTIVO_SOLICITACAO")
+            or "Confirmação de execução dos serviços técnicos."
+        )
 
         tx_id = str(uuid.uuid4())[:8].upper()
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -108,8 +135,13 @@ def iniciar_assinatura_remota():
         url_espera = f"{base_url}/espera_assinatura/{tx_id}"
         url_retorno = f"{base_url}/finalizar_assinatura/{tx_id}"
 
+        evo_url = os.getenv("EVOLUTION_API_URL", EVOLUTION_API_URL).strip().rstrip("/")
+        evo_key = os.getenv("EVOLUTION_API_KEY", EVOLUTION_API_KEY).strip()
+
+        logging.info(f"[ASSINATURA] tel_limpo='{tel_limpo}' | evo_url='{evo_url}' | has_key={bool(evo_key)}")
+
         # Tenta disparo automático pelo Evolution Go se configurado
-        if tel_limpo and len(tel_limpo) >= 10 and EVOLUTION_API_KEY:
+        if tel_limpo and len(tel_limpo) >= 10 and evo_key:
             num_wa = tel_limpo if tel_limpo.startswith("55") else f"55{tel_limpo}"
             msg_wa = (
                 f"Olá *{nome_cliente}*!\n\n"
@@ -118,14 +150,17 @@ def iniciar_assinatura_remota():
                 f"Por favor, revise e assine digitalmente no link seguro abaixo:\n{url_assinar}"
             )
             try:
-                requests.post(
-                    f"{EVOLUTION_API_URL}/send/text",
-                    headers={"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"},
+                resp_wa = requests.post(
+                    f"{evo_url}/send/text",
+                    headers={"apikey": evo_key, "Content-Type": "application/json"},
                     json={"number": num_wa, "text": msg_wa, "linkPreview": False},
-                    timeout=5
+                    timeout=10
                 )
+                logging.info(f"[ASSINATURA] Evolution Go envio para {num_wa}: HTTP {resp_wa.status_code} - {resp_wa.text}")
             except Exception as ex:
-                logging.warning(f"Falha ao enviar link de assinatura via Evolution: {ex}")
+                logging.warning(f"[ASSINATURA] Falha ao enviar link de assinatura via Evolution: {ex}")
+        else:
+            logging.warning(f"[ASSINATURA] Envio WhatsApp ignorado! tel_limpo='{tel_limpo}', has_key={bool(evo_key)}")
 
         response = etree.Element("Response")
         ret = etree.SubElement(response, "ReturnValue")

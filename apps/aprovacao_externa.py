@@ -72,15 +72,43 @@ def iniciar_aprovacao_externa():
         task_num = root.findtext(".//Task/TaskNum") or "N/A"
         tecnico = root.findtext(".//Employee/EmployeeNumber") or "Técnico"
 
-        nome_node = root.xpath(".//Field[Id='NOME_APROVADOR' or ID='NOME_APROVADOR' or Id='NOME_CLIENTE' or ID='NOME_CLIENTE']/Value")
-        nome_aprovador = nome_node[0].text.strip() if nome_node and nome_node[0].text else "Aprovador / Cliente"
+        # Extrai todos os campos em dicionário case-insensitive (aceita Id, ID, id)
+        campos_form = {}
+        for f in root.findall(".//Field"):
+            fid = f.findtext("Id") or f.findtext("ID") or f.findtext("id")
+            fval = f.findtext("Value") or ""
+            if fid:
+                campos_form[fid.strip().upper()] = fval.strip()
 
-        tel_node = root.xpath(".//Field[Id='TEL_APROVADOR' or ID='TEL_APROVADOR' or Id='TEL_CLIENTE' or ID='TEL_CLIENTE' or Id='TELEFONE']/Value")
-        tel_bruto = tel_node[0].text.strip() if tel_node and tel_node[0].text else ""
+        logging.info(f"[APROVACAO] Campos recebidos do XML: {campos_form}")
+
+        nome_aprovador = (
+            campos_form.get("NOME_APROVADOR")
+            or campos_form.get("NOME_CLIENTE")
+            or campos_form.get("CLIENTE")
+            or campos_form.get("APROVADOR")
+            or "Aprovador / Cliente"
+        )
+
+        tel_bruto = (
+            campos_form.get("TEL_APROVADOR")
+            or campos_form.get("TEL_CLIENTE")
+            or campos_form.get("TELEFONE")
+            or campos_form.get("WHATSAPP")
+            or campos_form.get("CELULAR")
+            or campos_form.get("FONE")
+            or campos_form.get("TEL")
+            or ""
+        )
         tel_limpo = re.sub(r"\D", "", tel_bruto)
 
-        motivo_node = root.xpath(".//Field[Id='MOTIVO_SOLICITACAO' or ID='MOTIVO_SOLICITACAO' or Id='OBS_TECNICA' or ID='OBS']/Value")
-        motivo = motivo_node[0].text.strip() if motivo_node and motivo_node[0].text else "Validação e aprovação externa de atendimento em campo."
+        motivo = (
+            campos_form.get("MOTIVO_SOLICITACAO")
+            or campos_form.get("RESUMO_SERVICO")
+            or campos_form.get("OBS_TECNICA")
+            or campos_form.get("OBS")
+            or "Validação e aprovação externa de atendimento em campo."
+        )
 
         tx_id = str(uuid.uuid4())[:8].upper()
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -98,8 +126,13 @@ def iniciar_aprovacao_externa():
         url_espera = f"{base_url}/espera/{tx_id}"
         url_webservice_retorno = f"{base_url}/finalizar_aprovacao/{tx_id}"
 
+        evo_url = os.getenv("EVOLUTION_API_URL", EVOLUTION_API_URL).strip().rstrip("/")
+        evo_key = os.getenv("EVOLUTION_API_KEY", EVOLUTION_API_KEY).strip()
+
+        logging.info(f"[APROVACAO] tel_limpo='{tel_limpo}' | evo_url='{evo_url}' | has_key={bool(evo_key)}")
+
         # Se tiver Evolution API configurada e telefone válido, tenta enviar automaticamente via WhatsApp
-        if tel_limpo and len(tel_limpo) >= 10 and EVOLUTION_API_KEY:
+        if tel_limpo and len(tel_limpo) >= 10 and evo_key:
             num_wa = tel_limpo if tel_limpo.startswith("55") else f"55{tel_limpo}"
             msg_wa = (
                 f"Olá *{nome_aprovador}*!\n\n"
@@ -109,14 +142,16 @@ def iniciar_aprovacao_externa():
             )
             try:
                 resp_wa = requests.post(
-                    f"{EVOLUTION_API_URL}/send/text",
-                    headers={"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"},
+                    f"{evo_url}/send/text",
+                    headers={"apikey": evo_key, "Content-Type": "application/json"},
                     json={"number": num_wa, "text": msg_wa, "linkPreview": False},
-                    timeout=5
+                    timeout=10
                 )
-                logging.info(f"Evolution Go envio para {num_wa}: HTTP {resp_wa.status_code} - {resp_wa.text}")
+                logging.info(f"[APROVACAO] Evolution Go envio para {num_wa}: HTTP {resp_wa.status_code} - {resp_wa.text}")
             except Exception as ex:
-                logging.warning(f"Falha ao enviar WhatsApp automático (Evolution): {ex}")
+                logging.warning(f"[APROVACAO] Falha ao enviar WhatsApp automático (Evolution): {ex}")
+        else:
+            logging.warning(f"[APROVACAO] Envio WhatsApp ignorado! tel_limpo='{tel_limpo}', has_key={bool(evo_key)}")
 
         # Retorna Action=OpenUrl conforme Página 167 e 171 do manual OfficeTrack
         response = etree.Element("Response")
