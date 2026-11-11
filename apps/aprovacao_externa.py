@@ -108,12 +108,13 @@ def iniciar_aprovacao_externa():
                 f"Acesse o link seguro para responder agora:\n{url_responder}"
             )
             try:
-                requests.post(
-                    f"{EVOLUTION_API_URL}/message/sendText/{EVOLUTION_INSTANCE}",
+                resp_wa = requests.post(
+                    f"{EVOLUTION_API_URL}/send/text",
                     headers={"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"},
-                    json={"number": num_wa, "text": msg_wa},
+                    json={"number": num_wa, "text": msg_wa, "linkPreview": False},
                     timeout=5
                 )
+                logging.info(f"Evolution Go envio para {num_wa}: HTTP {resp_wa.status_code} - {resp_wa.text}")
             except Exception as ex:
                 logging.warning(f"Falha ao enviar WhatsApp automático (Evolution): {ex}")
 

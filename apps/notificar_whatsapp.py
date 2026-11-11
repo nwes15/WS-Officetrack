@@ -66,21 +66,22 @@ def notificar_whatsapp():
         enviado = False
         detalhe_envio = ""
 
-        # Tenta disparar via Evolution API se configurada
+        # Tenta disparar via Evolution Go (/send/text) se configurada
         if EVOLUTION_API_KEY:
             try:
-                endpoint = f"{EVOLUTION_API_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+                endpoint = f"{EVOLUTION_API_URL}/send/text"
                 headers = {"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"}
                 payload = {
                     "number": numero_whatsapp,
-                    "text": mensagem_texto
+                    "text": mensagem_texto,
+                    "linkPreview": False
                 }
                 resp = requests.post(endpoint, headers=headers, json=payload, timeout=8)
                 if resp.status_code in [200, 201]:
                     enviado = True
-                    detalhe_envio = "Disparado via Evolution API"
+                    detalhe_envio = "Disparado via Evolution Go"
             except Exception as e:
-                logging.warning(f"Não foi possível enviar via Evolution API: {e}")
+                logging.warning(f"Não foi possível enviar via Evolution Go: {e}")
 
         # Se não tiver chave da Evolution, simula envio com sucesso para testes em campo
         if not enviado:
