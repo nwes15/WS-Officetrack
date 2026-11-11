@@ -152,7 +152,7 @@ def tela_chat_ia(chat_id):
     # Filtra a mensagem system da exibição visual
     mensagens_visiveis = [m for m in mensagens if m["role"] != "system"]
 
-    html = """
+    html = r"""
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
@@ -204,7 +204,7 @@ def tela_chat_ia(chat_id):
 
             <div class="input-area">
                 <textarea id="msg-input" placeholder="Digite sua pergunta técnica..." onkeydown="checarEnter(event)"></textarea>
-                <button class="btn-send" id="btn-send" onclick="enviarMensagem()">➤</button>
+                <button type="button" class="btn-send" id="btn-send" onclick="enviarMensagem()">➤</button>
             </div>
         </div>
 
@@ -265,31 +265,47 @@ def tela_chat_ia(chat_id):
                     typing.style.display = "none";
                     balaoIA = adicionarBalao("assistant", "");
 
-                    const reader = resp.body.getReader();
-                    const decoder = new TextDecoder("utf-8");
-                    let buffer = "";
+                    if (resp.body && typeof resp.body.getReader === "function") {
+                        const reader = resp.body.getReader();
+                        const decoder = new TextDecoder("utf-8");
+                        let buffer = "";
 
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
 
-                        buffer += decoder.decode(value, { stream: true });
-                        const linhas = buffer.split("\n\n");
-                        buffer = linhas.pop(); // guarda fragmento incompleto
+                            buffer += decoder.decode(value, { stream: true });
+                            const linhas = buffer.split("\n\n");
+                            buffer = linhas.pop();
 
+                            for (const linha of linhas) {
+                                if (linha.startsWith("data: ")) {
+                                    try {
+                                        const payload = JSON.parse(linha.slice(6));
+                                        if (payload.chunk) {
+                                            balaoIA.textContent += payload.chunk;
+                                            rolarParaBaixo();
+                                        } else if (payload.error) {
+                                            balaoIA.textContent += "\n⚠️ " + payload.error;
+                                        }
+                                    } catch (e) {}
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback para WebViews antigas sem ReadableStream
+                        const textoBruto = await resp.text();
+                        const linhas = textoBruto.split("\n\n");
                         for (const linha of linhas) {
                             if (linha.startsWith("data: ")) {
                                 try {
                                     const payload = JSON.parse(linha.slice(6));
-                                    if (payload.chunk) {
-                                        balaoIA.textContent += payload.chunk;
-                                        rolarParaBaixo();
-                                    } else if (payload.error) {
-                                        balaoIA.textContent += "\n⚠️ " + payload.error;
-                                    }
+                                    if (payload.chunk) balaoIA.textContent += payload.chunk;
+                                    else if (payload.error) balaoIA.textContent += "\n⚠️ " + payload.error;
                                 } catch (e) {}
                             }
                         }
+                        rolarParaBaixo();
                     }
                 } catch (err) {
                     if (balaoIA) {
