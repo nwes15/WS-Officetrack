@@ -42,6 +42,16 @@ from apps.chat_ia_openurl import (
     resumir_chat_ia,
     finalizar_chat_ia,
 )
+from apps.assinatura_remota import (
+    iniciar_assinatura_remota,
+    sala_espera_assinatura,
+    tela_assinar_externo,
+    servir_imagem_assinatura,
+    ver_comprovante_assinatura,
+    status_assinatura_api,
+    finalizar_assinatura,
+    consultar_assinatura_manual,
+)
 
 
 load_dotenv()
@@ -98,6 +108,14 @@ app.add_url_rule("/chat_ia/<chat_id>", methods=['GET'], view_func=tela_chat_ia)
 app.add_url_rule("/api/chat_ia/<chat_id>/mensagem", methods=['POST'], view_func=enviar_mensagem_chat_ia)
 app.add_url_rule("/api/chat_ia/<chat_id>/resumir", methods=['POST'], view_func=resumir_chat_ia)
 app.add_url_rule("/finalizar_chat_ia/<chat_id>", methods=['POST', 'GET'], view_func=finalizar_chat_ia)
+app.add_url_rule("/iniciar_assinatura_remota", methods=['POST'], view_func=iniciar_assinatura_remota)
+app.add_url_rule("/espera_assinatura/<tx_id>", methods=['GET'], view_func=sala_espera_assinatura)
+app.add_url_rule("/assinar/<tx_id>", methods=['GET', 'POST'], view_func=tela_assinar_externo)
+app.add_url_rule("/assinatura_img/<tx_id>", methods=['GET'], view_func=servir_imagem_assinatura)
+app.add_url_rule("/ver_assinatura/<tx_id>", methods=['GET'], view_func=ver_comprovante_assinatura)
+app.add_url_rule("/api/status_assinatura/<tx_id>", methods=['GET'], view_func=status_assinatura_api)
+app.add_url_rule("/finalizar_assinatura/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_assinatura)
+app.add_url_rule("/consultar_assinatura_manual", methods=['POST'], view_func=consultar_assinatura_manual)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)

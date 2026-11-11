@@ -26,6 +26,7 @@ Nas configurações de cada botão Web Service Call no OfficeTrack, o endereço 
 9. [Validador Universal de Duplicidade em Tabelas (`/validar_duplicidade`)](#9-validador-universal-de-duplicidade-em-tabelas)
 10. [Aprovação / Preenchimento Externo em Tempo Real (`/iniciar_aprovacao_externa`)](#10-aprovação--preenchimento-externo-em-tempo-real)
 11. [Chatbot Interativo GPT-4o-mini na Tela (`/iniciar_chat_ia`)](#11-chatbot-interativo-gpt-4o-mini-na-tela)
+12. [Assinatura Digital à Distância com Link PNG para Report Designer (`/iniciar_assinatura_remota`)](#12-assinatura-digital-à-distância-com-link-png-para-report-designer)
 
 ---
 
@@ -256,6 +257,31 @@ Crie uma tabela com o ID exato **`TAB_HISTORICO`** e as seguintes colunas:
 | **Texto** | Código da Sessão Chat | `CHAT_ID` | Não (Oculto) | Preenchido automaticamente |
 | **Área de Texto** | Parecer / Resumo da IA | `CHAT_RESUMO_IA` | Sim | Resumo ou última orientação gerada pela IA |
 | **Área de Texto** | Histórico da Conversa | `CHAT_HISTORICO_IA` | Sim/Não | Transcrição completa do chat |
+
+---
+
+## 12. Assinatura Digital à Distância com Link PNG para Report Designer
+
+* **Rota Principal (Botão):** `POST /iniciar_assinatura_remota`
+* **Rota de Fallback (Opcional):** `POST /consultar_assinatura_manual`
+* **Objetivo:** Envia um link para o cliente revisar o serviço e assinar com o dedo no quadro Canvas do navegador. O servidor salva a assinatura como uma **imagem PNG real** e devolve o **link direto da imagem (`.../assinatura_img/TXID.png`)** para o campo de texto do formulário — que você pode vincular direto no componente de **Foto/Imagem do Report Designer**!
+
+### Estrutura do Formulário no OfficeTrack:
+
+| Tipo de Campo | Rótulo (Label) | ID do Campo (Exato) | Visível? | Função |
+| :--- | :--- | :--- | :---: | :--- |
+| **Texto** | Nome do Cliente | `NOME_CLIENTE` | Sim | Nome de quem vai assinar |
+| **Telefone** | WhatsApp do Cliente | `TEL_CLIENTE` | Sim | Número com DDD |
+| **Área de Texto** | Resumo do Serviço | `RESUMO_SERVICO` | Sim | O cliente vê isso antes de assinar |
+| **Web Service Call** | Coletar Assinatura Remota | `BTN_ASSINATURA` | Sim | Tipo: **Preencher Form** • Rota: `POST /iniciar_assinatura_remota` |
+| **Texto** | Protocolo Assinatura | `TXID_ASSINATURA` | Não (Oculto) | Código da sessão |
+| **Texto** | Status da Assinatura | `STATUS_ASSINATURA` | Sim | `ASSINADO DIGITALMENTE` ou `AGUARDANDO` |
+| **Texto** | Nome do Assinante | `ASSINANTE_NOME` | Sim | Nome digitado pelo cliente |
+| **Texto** | CPF / Documento | `ASSINANTE_DOC` | Sim | Documento digitado pelo cliente |
+| **Texto** | Link Direto da Imagem PNG | `LINK_ASSINATURA` | Sim/Não | URL `.../assinatura_img/TXID.png` (**Vincular no Report Designer!**) |
+| **Texto** | Link do Comprovante Completo | `LINK_COMPROVANTE` | Sim/Não | Página com assinatura + IP + Data + Hash |
+| **Texto** | Hash de Auditoria | `HASH_AUDITORIA` | Não/Sim | Hash SHA-256 + Data/Hora + IP |
+| **Web Service Call** | Consultar Assinatura (Opcional) | `BTN_CONSULTA_ASSIN` | Sim | Caso feche antes, dispara `POST /consultar_assinatura_manual` |
 
 ---
 
