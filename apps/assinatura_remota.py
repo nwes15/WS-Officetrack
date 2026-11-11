@@ -241,7 +241,7 @@ def sala_espera_assinatura(tx_id):
                         document.getElementById("success-section").style.display = "block";
                         document.getElementById("res-nome").innerText = data.assinante_nome;
                         document.getElementById("res-doc").innerText = data.assinante_doc || "Não informado";
-                        document.getElementById("res-img").src = "/assinatura_img/{{ tx_id }}.png?t=" + Date.now();
+                        document.getElementById("res-img").src = "/assinatura_img/{{ tx_id }}.jpg?t=" + Date.now();
                         return;
                     }
                 } catch (e) {}
@@ -321,7 +321,7 @@ def tela_assinar_externo(tx_id):
                 <h2>Assinatura Registrada!</h2>
                 <p>Obrigado, <strong>{{ assinante_nome }}</strong>. Sua assinatura foi validada e enviada para o relatório da OS {{ task_num }}.</p>
                 <div class="sig-box">
-                    <img src="/assinatura_img/{{ tx_id }}.png" alt="Sua assinatura">
+                    <img src="/assinatura_img/{{ tx_id }}.jpg" alt="Sua assinatura">
                 </div>
                 <div class="hash">
                     Protocolo: #{{ tx_id }}<br>
@@ -469,7 +469,7 @@ def tela_assinar_externo(tx_id):
                     alert("Por favor, desenhe sua assinatura no quadro antes de confirmar.");
                     return false;
                 }
-                document.getElementById("assinatura_b64").value = canvas.toDataURL("image/png");
+                document.getElementById("assinatura_b64").value = canvas.toDataURL("image/jpeg", 0.92);
                 return true;
             }
         </script>
@@ -488,10 +488,10 @@ def tela_assinar_externo(tx_id):
 
 def servir_imagem_assinatura(tx_id):
     """
-    URL DIRETA DA IMAGEM PNG para ser usada no campo de Imagem do Report Designer do OfficeTrack!
-    Ex: https://seu-dominio/assinatura_img/C17D8C4A.png
+    URL DIRETA DA IMAGEM (JPG ou PNG) para ser usada no campo de Imagem do Report Designer do OfficeTrack!
+    Ex: https://seu-dominio/assinatura_img/C17D8C4A.jpg
     """
-    tx_id_limpo = tx_id.replace(".png", "").strip().upper()
+    tx_id_limpo = re.sub(r"\.(jpg|jpeg|png)$", "", tx_id.strip(), flags=re.IGNORECASE).upper()
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT imagem_base64 FROM assinaturas WHERE tx_id = ?", (tx_id_limpo,)).fetchone()
@@ -500,7 +500,22 @@ def servir_imagem_assinatura(tx_id):
         return "Imagem não encontrada", 404
 
     img_bytes = base64.b64decode(row["imagem_base64"])
-    return Response(img_bytes, content_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+    # Detecta o tipo real pelo cabeçalho binário
+    if img_bytes[:4] == b"\x89PNG":
+        mime = "image/png"
+        ext = "png"
+    else:
+        mime = "image/jpeg"
+        ext = "jpg"
+
+    headers = {
+        "Content-Length": str(len(img_bytes)),
+        "Content-Disposition": f'inline; filename="assinatura_{tx_id_limpo}.{ext}"',
+        "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*"
+    }
+    return Response(img_bytes, content_type=mime, headers=headers)
 
 
 def ver_comprovante_assinatura(tx_id):
@@ -532,7 +547,7 @@ def ver_comprovante_assinatura(tx_id):
         <div class="card">
             <h2>Comprovante de Assinatura Digital</h2>
             <div class="sig-box">
-                <img src="/assinatura_img/{{ row.tx_id }}.png" alt="Assinatura Digital">
+                <img src="/assinatura_img/{{ row.tx_id }}.jpg" alt="Assinatura Digital">
             </div>
             <div class="meta">
                 <strong>Protocolo:</strong> #{{ row.tx_id }}<br>
@@ -587,7 +602,7 @@ def finalizar_assinatura(tx_id):
             )
 
         base_url = _obter_base_url()
-        link_direto_png = f"{base_url}/assinatura_img/{tx_id}.png"
+        link_direto_jpg = f"{base_url}/assinatura_img/{tx_id}.jpg"
         link_comprovante = f"{base_url}/ver_assinatura/{tx_id}"
 
         campos = {
@@ -595,7 +610,7 @@ def finalizar_assinatura(tx_id):
             "STATUS_ASSINATURA": "ASSINADO DIGITALMENTE",
             "ASSINANTE_NOME": row["assinante_nome"],
             "ASSINANTE_DOC": row["assinante_doc"] or "Não informado",
-            "LINK_ASSINATURA": link_direto_png,
+            "LINK_ASSINATURA": link_direto_jpg,
             "LINK_COMPROVANTE": link_comprovante,
             "HASH_AUDITORIA": f"{row['hash_validacao']} ({row['assinado_em']} • IP {row['ip_assinante']})"
         }

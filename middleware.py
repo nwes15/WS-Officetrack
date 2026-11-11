@@ -111,7 +111,7 @@ app.add_url_rule("/finalizar_chat_ia/<chat_id>", methods=['POST', 'GET'], view_f
 app.add_url_rule("/iniciar_assinatura_remota", methods=['POST'], view_func=iniciar_assinatura_remota)
 app.add_url_rule("/espera_assinatura/<tx_id>", methods=['GET'], view_func=sala_espera_assinatura)
 app.add_url_rule("/assinar/<tx_id>", methods=['GET', 'POST'], view_func=tela_assinar_externo)
-app.add_url_rule("/assinatura_img/<tx_id>", methods=['GET'], view_func=servir_imagem_assinatura)
+app.add_url_rule("/assinatura_img/<tx_id>", methods=['GET', 'HEAD'], view_func=servir_imagem_assinatura)
 app.add_url_rule("/ver_assinatura/<tx_id>", methods=['GET'], view_func=ver_comprovante_assinatura)
 app.add_url_rule("/api/status_assinatura/<tx_id>", methods=['GET'], view_func=status_assinatura_api)
 app.add_url_rule("/finalizar_assinatura/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_assinatura)
