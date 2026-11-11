@@ -25,6 +25,7 @@ Nas configurações de cada botão Web Service Call no OfficeTrack, o endereço 
 8. [Disparo de Notificação WhatsApp (`/notificar_whatsapp`)](#8-disparo-de-notificação-whatsapp)
 9. [Validador Universal de Duplicidade em Tabelas (`/validar_duplicidade`)](#9-validador-universal-de-duplicidade-em-tabelas)
 10. [Aprovação / Preenchimento Externo em Tempo Real (`/iniciar_aprovacao_externa`)](#10-aprovação--preenchimento-externo-em-tempo-real)
+11. [Chatbot Interativo GPT-4o-mini na Tela (`/iniciar_chat_ia`)](#11-chatbot-interativo-gpt-4o-mini-na-tela)
 
 ---
 
@@ -238,6 +239,23 @@ Crie uma tabela com o ID exato **`TAB_HISTORICO`** e as seguintes colunas:
 | **Área de Texto** | Parecer / Observação Externa | `OBS_EXTERNA` | Sim | Observação digitada lá fora |
 | **Texto** | Data/Hora Confirmação | `DATA_HORA_EXT` | Sim | Carimbo de data e hora da resposta |
 | **Web Service Call** | Buscar Resposta (Opcional) | `BTN_CONSULTAR` | Sim | Caso feche antes, dispara `POST /consultar_aprovacao_manual` |
+
+---
+
+## 11. Chatbot Interativo GPT-4o-mini na Tela
+
+* **Rota do Botão:** `POST /iniciar_chat_ia`
+* **Variável de Ambiente Obrigatória (Render / Docker):** `OPENAI_API_KEY` (e opcional `OPENAI_MODEL=gpt-4o-mini`).
+* **Objetivo:** Abre uma interface real de Chat estilo ChatGPT dentro do app OfficeTrack (`OpenUrl`). A IA já recebe automaticamente o contexto dos campos preenchidos no formulário, conversa livremente com o técnico e, ao fechar o chat, envia o resumo e o histórico da conversa direto para o formulário!
+
+### Estrutura do Formulário no OfficeTrack:
+
+| Tipo de Campo | Rótulo (Label) | ID do Campo (Exato) | Visível? | Função |
+| :--- | :--- | :--- | :---: | :--- |
+| **Web Service Call** | Abrir Assistente IA | `BTN_CHAT` | Sim | Tipo: **Preencher Form** • Rota: `POST /iniciar_chat_ia` |
+| **Texto** | Código da Sessão Chat | `CHAT_ID` | Não (Oculto) | Preenchido automaticamente |
+| **Área de Texto** | Parecer / Resumo da IA | `CHAT_RESUMO_IA` | Sim | Resumo ou última orientação gerada pela IA |
+| **Área de Texto** | Histórico da Conversa | `CHAT_HISTORICO_IA` | Sim/Não | Transcrição completa do chat |
 
 ---
 

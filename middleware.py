@@ -35,6 +35,13 @@ from apps.aprovacao_externa import (
     finalizar_aprovacao,
     consultar_aprovacao_manual,
 )
+from apps.chat_ia_openurl import (
+    iniciar_chat_ia,
+    tela_chat_ia,
+    enviar_mensagem_chat_ia,
+    resumir_chat_ia,
+    finalizar_chat_ia,
+)
 
 
 load_dotenv()
@@ -86,6 +93,11 @@ app.add_url_rule("/responder/<tx_id>", methods=['GET', 'POST'], view_func=respon
 app.add_url_rule("/api/status_aprovacao/<tx_id>", methods=['GET'], view_func=status_aprovacao_api)
 app.add_url_rule("/finalizar_aprovacao/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_aprovacao)
 app.add_url_rule("/consultar_aprovacao_manual", methods=['POST'], view_func=consultar_aprovacao_manual)
+app.add_url_rule("/iniciar_chat_ia", methods=['POST'], view_func=iniciar_chat_ia)
+app.add_url_rule("/chat_ia/<chat_id>", methods=['GET'], view_func=tela_chat_ia)
+app.add_url_rule("/api/chat_ia/<chat_id>/mensagem", methods=['POST'], view_func=enviar_mensagem_chat_ia)
+app.add_url_rule("/api/chat_ia/<chat_id>/resumir", methods=['POST'], view_func=resumir_chat_ia)
+app.add_url_rule("/finalizar_chat_ia/<chat_id>", methods=['POST', 'GET'], view_func=finalizar_chat_ia)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)
