@@ -52,6 +52,13 @@ from apps.assinatura_remota import (
     finalizar_assinatura,
     consultar_assinatura_manual,
 )
+from apps.roleta_raspadinha import (
+    iniciar_premio,
+    tela_premio,
+    jogar_premio_api,
+    finalizar_premio,
+    consultar_premio_manual,
+)
 
 
 load_dotenv()
@@ -116,6 +123,11 @@ app.add_url_rule("/ver_assinatura/<tx_id>", methods=['GET'], view_func=ver_compr
 app.add_url_rule("/api/status_assinatura/<tx_id>", methods=['GET'], view_func=status_assinatura_api)
 app.add_url_rule("/finalizar_assinatura/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_assinatura)
 app.add_url_rule("/consultar_assinatura_manual", methods=['POST'], view_func=consultar_assinatura_manual)
+app.add_url_rule("/iniciar_premio", methods=['POST'], view_func=iniciar_premio)
+app.add_url_rule("/premio/<tx_id>", methods=['GET'], view_func=tela_premio)
+app.add_url_rule("/api/premio/<tx_id>/jogar", methods=['POST'], view_func=jogar_premio_api)
+app.add_url_rule("/finalizar_premio/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_premio)
+app.add_url_rule("/consultar_premio_manual", methods=['POST'], view_func=consultar_premio_manual)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)
