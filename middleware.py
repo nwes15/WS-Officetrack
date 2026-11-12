@@ -59,6 +59,12 @@ from apps.roleta_raspadinha import (
     finalizar_premio,
     consultar_premio_manual,
 )
+from apps.dashboard_tabela import (
+    iniciar_dashboard_tabela,
+    tela_dashboard_tabela,
+    finalizar_dashboard_tabela,
+    consultar_dashboard_manual,
+)
 
 
 load_dotenv()
@@ -128,6 +134,10 @@ app.add_url_rule("/premio/<tx_id>", methods=['GET'], view_func=tela_premio)
 app.add_url_rule("/api/premio/<tx_id>/jogar", methods=['POST'], view_func=jogar_premio_api)
 app.add_url_rule("/finalizar_premio/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_premio)
 app.add_url_rule("/consultar_premio_manual", methods=['POST'], view_func=consultar_premio_manual)
+app.add_url_rule("/iniciar_dashboard_tabela", methods=['POST'], view_func=iniciar_dashboard_tabela)
+app.add_url_rule("/dashboard_tabela/<tx_id>", methods=['GET'], view_func=tela_dashboard_tabela)
+app.add_url_rule("/finalizar_dashboard_tabela/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_dashboard_tabela)
+app.add_url_rule("/consultar_dashboard_manual", methods=['POST'], view_func=consultar_dashboard_manual)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)

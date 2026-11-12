@@ -285,6 +285,63 @@ Crie uma tabela com o ID exato **`TAB_HISTORICO`** e as seguintes colunas:
 
 ---
 
+## 13. Roleta da Sorte e Raspadinha Gamificada
+
+* **Rota de Início:** `POST /iniciar_premio`
+* **Rota de Consulta Manual:** `POST /consultar_premio_manual`
+* **Objetivo:** Abre roleta ou raspadinha para o técnico ao concluir uma meta ou OS.
+
+### Estrutura do Formulário no OfficeTrack:
+
+| Tipo de Campo | Rótulo (Label) | ID do Campo (Exato) | Visível? | Função |
+| :--- | :--- | :--- | :---: | :--- |
+| **Web Service Call** | Rodar Prêmio | `BTN_PREMIO` | Sim | Dispara `POST /iniciar_premio` |
+| **Texto** | Prêmio Ganho | `PREMIO_GANHO` | Sim | Preenchido automaticamente com o prêmio |
+| **Texto** | Código do Voucher | `CODIGO_VOUCHER` | Sim | Código único do voucher para resgate |
+| **Texto** | XP Ganho | `XP_GANHO` | Sim | Pontos conquistados na rodada |
+| **Texto** | XP Total | `XP_TOTAL` | Sim | Acumulado do técnico |
+| **Texto** | Nível | `NIVEL_TECNICO` | Sim | Bronze, Prata, Ouro ou Diamante |
+| **Texto** | Modo Jogado | `MODO_JOGO` | Não/Sim | `ROLETA` ou `RASPADINHA` |
+| **Texto** | Protocolo Prêmio | `TXID_PREMIO` | Não | ID da sessão |
+| **Web Service Call** | Consultar Prêmio (Opcional) | `BTN_CONSULTA_PREMIO` | Sim | Caso feche antes, dispara `POST /consultar_premio_manual` |
+
+---
+
+## 14. Dashboard Visual da Tabela Dinâmica de Manutenção
+
+* **Rota de Início:** `POST /iniciar_dashboard_tabela`
+* **Rota de Consulta Manual:** `POST /consultar_dashboard_manual`
+* **Objetivo:** O técnico adiciona N linhas na Tabela Dinâmica (equipamento, sistema, tipo de manutenção, status e custo/obs). O botão fora da tabela lê todas as linhas e abre um Dashboard executivo mobile com gráfico Donut, barras por sistema, cartões de KPI e lista filtrável, preenchendo o resumo na OS ao fechar.
+
+### Estrutura da Tabela Dinâmica (ID sugerido: `TABELA_EQUIPAMENTOS`):
+
+| Tipo de Campo | Rótulo (Label) | ID da Coluna (Exato) | Observação |
+| :--- | :--- | :--- | :--- |
+| **Lista / Texto** | Equipamento / Ativo | `EQUIPAMENTO` | Ex.: Ar Condicionado, Gerador, Bomba, etc. |
+| **Lista / Texto** | Sistema / Setor | `SISTEMA` | Ex.: Climatização, Elétrica, Hidráulica |
+| **Lista / Texto** | Tipo de Manutenção | `MANUTENCAO` | Ex.: Preventiva, Corretiva, Calibração, Limpeza |
+| **Lista / Texto** | Status / Condição | `STATUS` | `Operacional` (Verde), `Atenção` (Amarelo) ou `Crítico` (Vermelho) |
+| **Número / Decimal** | Custo Estimado | `CUSTO` | Opcional (valor do reparo ou peças) |
+| **Texto** | Observações / Defeito | `OBS` | Opcional (detalhes da avaria) |
+
+### Campos Fora da Tabela (no formulário principal):
+
+| Tipo de Campo | Rótulo (Label) | ID do Campo (Exato) | Visível? | Função |
+| :--- | :--- | :--- | :---: | :--- |
+| **Web Service Call** | 📊 Gerar Dashboard | `BTN_GERAR_DASH` | Sim | Dispara `POST /iniciar_dashboard_tabela` |
+| **Texto / Número** | Total de Ativos | `TOTAL_EQUIPAMENTOS` | Sim | Quantidade de linhas levantadas |
+| **Texto** | Índice de Saúde | `INDICE_SAUDE` | Sim | Percentual de conformidade geral (ex: 85%) |
+| **Texto** | Status do Parque | `STATUS_GERAL_PARQUE` | Sim | `PARQUE SAUDÁVEL`, `ATENÇÃO REQUERIDA` ou `RISCO OPERACIONAL` |
+| **Texto / Número** | Operacionais | `TOTAL_OPERACIONAIS` | Sim | Quantidade de ativos OK |
+| **Texto / Número** | Em Atenção | `TOTAL_ATENCAO` | Sim | Quantidade de ativos em alerta |
+| **Texto / Número** | Críticos | `TOTAL_CRITICOS` | Sim | Quantidade de ativos parados |
+| **Texto** | Custo Total Estimado | `CUSTO_TOTAL_MANUTENCAO` | Sim | Somatório dos custos informados |
+| **Texto** | Sistema Mais Afetado | `SISTEMA_MAIS_CRITICO` | Sim | Sistema com mais itens com problema |
+| **Texto** | Protocolo Dashboard | `TXID_DASHBOARD` | Não | ID da sessão |
+| **Web Service Call** | Recarregar Dashboard | `BTN_CONSULTA_DASH` | Não/Sim | Opcional: dispara `POST /consultar_dashboard_manual` |
+
+---
+
 ## 💡 Dicas de Boas Práticas no OfficeTrack
 
 1. **Maiúsculas e Minúsculas:** Os IDs no criador de formulários do OfficeTrack são sensíveis ao caso em algumas versões. Recomendamos criar os IDs exatamente como constam neste guia (em maiúsculas).
