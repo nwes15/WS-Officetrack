@@ -65,6 +65,14 @@ from apps.dashboard_tabela import (
     finalizar_dashboard_tabela,
     consultar_dashboard_manual,
 )
+from apps.validar_cracha import (
+    validar_cracha,
+    cracha_digital,
+    iniciar_scanner_cracha,
+    tela_scanner_cracha,
+    api_validar_scanner,
+    finalizar_scanner_cracha,
+)
 
 
 load_dotenv()
@@ -138,6 +146,12 @@ app.add_url_rule("/iniciar_dashboard_tabela", methods=['POST'], view_func=inicia
 app.add_url_rule("/dashboard_tabela/<tx_id>", methods=['GET'], view_func=tela_dashboard_tabela)
 app.add_url_rule("/finalizar_dashboard_tabela/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_dashboard_tabela)
 app.add_url_rule("/consultar_dashboard_manual", methods=['POST'], view_func=consultar_dashboard_manual)
+app.add_url_rule("/validar_cracha", methods=['POST'], view_func=validar_cracha)
+app.add_url_rule("/cracha_digital/<codigo>", methods=['GET'], view_func=cracha_digital)
+app.add_url_rule("/iniciar_scanner_cracha", methods=['POST'], view_func=iniciar_scanner_cracha)
+app.add_url_rule("/scanner_cracha/<tx_id>", methods=['GET'], view_func=tela_scanner_cracha)
+app.add_url_rule("/api/scanner_cracha/<tx_id>/validar", methods=['POST'], view_func=api_validar_scanner)
+app.add_url_rule("/finalizar_scanner_cracha/<tx_id>", methods=['POST', 'GET'], view_func=finalizar_scanner_cracha)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)

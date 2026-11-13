@@ -220,24 +220,40 @@ Crie uma tabela com o ID exato **`TAB_HISTORICO`** e as seguintes colunas:
 
 ---
 
-## 10. Aprovação / Preenchimento Externo em Tempo Real
+## 10. Aprovação Executiva / Preenchimento Externo em Tempo Real
 
 * **Rota Principal (Botão):** `POST /iniciar_aprovacao_externa`
 * **Rota de Fallback (Opcional):** `POST /consultar_aprovacao_manual`
-* **Objetivo:** O técnico solicita aprovação/confirmação de uma pessoa remota (supervisor ou cliente). O OfficeTrack abre uma Sala de Espera em tempo real (`OpenUrl`), envia o link pelo WhatsApp para a pessoa remota preencher no navegador dela e, quando o técnico fecha a janela, o app importa automaticamente a decisão e a observação para os campos do formulário.
+* **Objetivo:** O técnico solicita aprovação ou validação de uma pessoa remota (supervisor ou cliente). O webservice monta automaticamente um **Laudo Executivo Completo** no navegador do aprovador:
+  - Resumo contextual: Cliente, Endereço/Unidade, Equipamento/Série e Técnico responsável.
+  - Laudo Técnico: Defeito constatado vs. Serviço executado e observações técnicas.
+  - Tabela de Peças e Itens: Lista de peças/serviços com quantidades, valores unitários e totais.
+  - Resumo financeiro: Subtotal, desconto e valor total autorizado.
+  - Galeria de fotos/evidências (se houver fotos antes/depois).
+  - Assinatura digital com trilha de auditoria: Botões de aprovação e reprovação (com justificativa obrigatória), nome e cargo/documento.
+  - Disparo automático de WhatsApp executivo formatado via Evolution API.
+  - Quando o técnico fecha a Sala de Espera no app (`OpenUrl`), o OfficeTrack importa automaticamente a decisão, aprovador, cargo, parecer e valor para o formulário!
 
 ### Estrutura do Formulário no OfficeTrack:
 
 | Tipo de Campo | Rótulo (Label) | ID do Campo (Exato) | Visível? | Função |
 | :--- | :--- | :--- | :---: | :--- |
-| **Texto** | Nome do Aprovador / Cliente | `NOME_APROVADOR` | Sim | Nome de quem vai aprovar |
+| **Texto** | Nome do Cliente / Local | `CLIENTE` ou `NOME_CLIENTE` | Sim | Nome da empresa ou cliente |
+| **Texto** | Equipamento / Ativo | `EQUIPAMENTO` | Sim | Nome ou tag da máquina/sistema |
+| **Texto** | Número de Série | `NUMERO_SERIE` | Sim | Serial / Tag do ativo (opcional) |
+| **Área de Texto** | Defeito Constatado | `DEFEITO_CONSTATADO` | Sim | Problema/sintoma verificado pelo técnico |
+| **Área de Texto** | Serviço Executado | `SERVICO_EXECUTADO` | Sim | Resumo do trabalho realizado |
+| **Tabela Dinâmica** | Tabela de Peças / Itens | `TABELA_PECAS` ou `TABELA_ITENS` | Sim | Itens com colunas: `ITEM`, `QTD`, `VALOR_UNIT`, `TOTAL` |
+| **Numérico/Moeda** | Valor Total | `VALOR_TOTAL` | Sim | Total da OS autorizado |
+| **Texto** | Nome do Aprovador | `NOME_APROVADOR` | Sim | Nome de quem vai aprovar |
 | **Telefone** | WhatsApp do Aprovador | `TEL_APROVADOR` | Sim | Número com DDD (ex: 11999998888) |
-| **Área de Texto** | Motivo da Solicitação | `MOTIVO_SOLICITACAO` | Sim | O que a pessoa externa verá no link |
 | **Web Service Call** | Solicitar Aprovação Externa | `BTN_APROVACAO` | Sim | Dispara `POST /iniciar_aprovacao_externa` |
-| **Texto** | Protocolo da Sessão | `TXID_EXTERNO` | Não/Sim | Preenchido automaticamente (ex: `C17D8C4A`) |
+| **Texto** | Protocolo da Sessão | `TXID_EXTERNO` | Não/Sim | Preenchido automaticamente (ex: `CF3320CE`) |
 | **Texto** | Decisão / Status | `STATUS_EXTERNO` | Sim | `APROVADO`, `REPROVADO` ou `AGUARDANDO RESPOSTA` |
-| **Texto** | Aprovado Por | `NOME_APROVADOR_EXT` | Sim | Nome que a pessoa digitou lá fora |
-| **Área de Texto** | Parecer / Observação Externa | `OBS_EXTERNA` | Sim | Observação digitada lá fora |
+| **Texto** | Aprovado Por | `NOME_APROVADOR_EXT` | Sim | Nome digitado no laudo |
+| **Texto** | Cargo / Documento | `CARGO_APROVADOR_EXT` | Sim | Cargo, CPF ou matrícula do aprovador |
+| **Área de Texto** | Parecer / Justificativa | `OBS_EXTERNA` | Sim | Parecer de liberação ou motivo da reprovação |
+| **Texto** | Valor Aprovado | `VALOR_APROVADO_EXT` | Sim | Valor total aprovado |
 | **Texto** | Data/Hora Confirmação | `DATA_HORA_EXT` | Sim | Carimbo de data e hora da resposta |
 | **Web Service Call** | Buscar Resposta (Opcional) | `BTN_CONSULTAR` | Sim | Caso feche antes, dispara `POST /consultar_aprovacao_manual` |
 
@@ -339,6 +355,32 @@ Crie uma tabela com o ID exato **`TAB_HISTORICO`** e as seguintes colunas:
 | **Texto** | Sistema Mais Afetado | `SISTEMA_MAIS_CRITICO` | Sim | Sistema com mais itens com problema |
 | **Texto** | Protocolo Dashboard | `TXID_DASHBOARD` | Não | ID da sessão |
 | **Web Service Call** | Recarregar Dashboard | `BTN_CONSULTA_DASH` | Não/Sim | Opcional: dispara `POST /consultar_dashboard_manual` |
+
+---
+
+## 15. Validação de Crachá e Liberação Condicional do Formulário
+
+* **Opção A (Câmera com Leitor QR Code OpenUrl):** `POST /iniciar_scanner_cracha` *(Abre a câmera do celular com mira de scanner e lê automaticamente ao apontar pro crachá)*
+* **Opção B (Modo Direto via Digitação/Leitor de Barcode):** `POST /validar_cracha`
+* **Objetivo:** O técnico escaneia com a câmera ou digita o código do crachá. O Web Service valida a credencial no banco de autorizados: se estiver ativo, devolve `FLAG_LIBERACAO = 1` e preenche nome, cargo, empresa e nível de acesso. Se estiver inativo, bloqueado ou inexistente, devolve `FLAG_LIBERACAO = 0` e emite alerta de bloqueio impeditivo.
+
+### Estrutura do Formulário no OfficeTrack:
+
+| Tipo de Campo | Rótulo (Label) | ID do Campo (Exato) | Visível? | Função |
+| :--- | :--- | :--- | :---: | :--- |
+| **Web Service Call (Recomendado)** | 📷 Escanear Crachá (Câmera) | `BTN_SCANNER_CRACHA` | Sim | **Abre o Leitor de QR Code na tela via Câmera** (`POST /iniciar_scanner_cracha`) |
+| **Texto / Barcode** | Código do Crachá | `COD_CRACHA` | Sim | Preenchido automaticamente pelo scanner ou digitado manual |
+| **Web Service Call (Opcional)** | Validar Crachá (Direto) | `BTN_VALIDAR_CRACHA` | Não/Sim | Valida o código digitado sem abrir câmera (`POST /validar_cracha`) |
+| **Texto / Check** | Flag Liberação | `FLAG_LIBERACAO` | Não (Oculto) | **`1` (Liberado) ou `0` (Bloqueado)** — **Use nas regras de visibilidade das outras seções!** |
+| **Texto** | Status da Autorização | `STATUS_AUTORIZACAO` | Sim | `AUTORIZADO`, `BLOQUEADO` ou `NÃO AUTORIZADO` |
+| **Texto** | Nome do Titular | `NOME_AUTORIZADO` | Sim | Preenchido automaticamente com o nome |
+| **Texto** | Cargo / Função | `CARGO_AUTORIZADO` | Sim | Especialidade do titular |
+| **Texto** | Empresa | `EMPRESA_AUTORIZADO` | Sim | Prestadora ou setor interno |
+| **Texto** | Nível de Acesso | `NIVEL_ACESSO` | Sim | Nível de permissão (ex.: Nível 4 - Total) |
+| **Texto** | Áreas Permitidas | `AREAS_PERMITIDAS` | Sim/Não | Subestações, CPD, Climatização, etc. |
+| **Texto** | Validade | `VALIDADE_CRACHA` | Sim | Data de validade da credencial |
+| **Texto** | Mensagem / Motivo | `MOTIVO_BLOQUEIO` | Não/Sim | Motivo caso ocorra recusa |
+| **Texto** | Link Crachá Digital | `LINK_CRACHA_DIGITAL` | Sim/Não | URL da credencial digital com foto |
 
 ---
 
